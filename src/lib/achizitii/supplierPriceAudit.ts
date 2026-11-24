@@ -5,7 +5,8 @@ export { validatePricePeriods } from '../../../supabase/functions/_shared/suppli
 export type { SupplierPricePeriod } from '../../../supabase/functions/_shared/supplierPricePeriods';
 export type PriceList = { currency: string; items: PriceListItem[]; suppliers: { name: string; aliases: string[] }[]; periods?: SupplierPricePeriod[] };
 export type InvoiceLine = { id: number | string; day: string; tip: string; doc: string; sup: string; art: string; um: string; q: number; pron: number; vron: number; peur: number | null; pref: number | null; cur: string; rate: number | null };
-export type LineStatus = 'ok' | 'peste' | 'sub' | 'fara_pret' | 'necunoscut';
+/** credit = negative quantity (return / quality credit note): counts in the billed value, never in price comparisons. */
+export type LineStatus = 'ok' | 'peste' | 'sub' | 'fara_pret' | 'necunoscut' | 'credit';
 export type AuditLine = InvoiceLine & {
   supplier: string | null; category: string; agreed: number | null; best: number | null; bestSupplier: string | null;
   /** EUR: supplier billed vs its own agreed price (+ = we paid more). */ priceDiff: number;
@@ -48,7 +49,7 @@ export function auditLine(l: InvoiceLine, list: PriceList): AuditLine {
   const agreed = supplier ? item?.prices[supplier] ?? null : null;
   const b = cheapest(item);
   const peur = l.peur ?? 0, q = l.q;
-  const status: LineStatus = !supplier ? 'necunoscut' : agreed == null ? 'fara_pret'
+  const status: LineStatus = q < 0 ? 'credit' : !supplier ? 'necunoscut' : agreed == null ? 'fara_pret'
     : peur - agreed > PRICE_TOLERANCE_EUR ? 'peste' : agreed - peur > PRICE_TOLERANCE_EUR ? 'sub' : 'ok';
   return {
     ...l, supplier, category: item?.category ?? '', agreed, best: b?.price ?? null, bestSupplier: b?.supplier ?? null,
@@ -58,18 +59,19 @@ export function auditLine(l: InvoiceLine, list: PriceList): AuditLine {
     choiceDiff: b && agreed != null ? q * Math.max(0, Math.min(peur, agreed) - b.price) : 0,
     totalDiff: b ? q * (peur - b.price) : 0,
     savings: b && agreed != null ? q * Math.max(0, peur - b.price) : 0,
-    isCheapest: b && agreed != null ? Math.min(peur, agreed) - b.price <= PRICE_TOLERANCE_EUR : null,
+    isCheapest: q < 0 ? null : b && agreed != null ? Math.min(peur, agreed) - b.price <= PRICE_TOLERANCE_EUR : null,
     status,
   };
 }
 
-export type Totals = { qty: number; paid: number; atAgreed: number; atBest: number; priceDiff: number; choiceDiff: number; totalDiff: number; lines: number; issues: number; notCheapest: number; savings: number; over: number; under: number; overLines: number; underLines: number; withoutAgreed: number; withoutBest: number };
+export type Totals = { qty: number; paid: number; atAgreed: number; atBest: number; priceDiff: number; choiceDiff: number; totalDiff: number; lines: number; issues: number; notCheapest: number; savings: number; over: number; under: number; overLines: number; underLines: number; withoutAgreed: number; withoutBest: number; creditLines: number; credit: number };
 export function totals(lines: AuditLine[]): Totals {
-  const t: Totals = { qty: 0, paid: 0, atAgreed: 0, atBest: 0, priceDiff: 0, choiceDiff: 0, totalDiff: 0, lines: lines.length, issues: 0, notCheapest: 0, savings: 0, over: 0, under: 0, overLines: 0, underLines: 0, withoutAgreed: 0, withoutBest: 0 };
+  const t: Totals = { qty: 0, paid: 0, atAgreed: 0, atBest: 0, priceDiff: 0, choiceDiff: 0, totalDiff: 0, lines: lines.length, issues: 0, notCheapest: 0, savings: 0, over: 0, under: 0, overLines: 0, underLines: 0, withoutAgreed: 0, withoutBest: 0, creditLines: 0, credit: 0 };
   for (const l of lines) {
+    if (l.status === 'credit') { t.creditLines++; t.credit += l.paid; t.lines--; }
     t.qty += l.q; t.paid += l.paid; t.priceDiff += l.priceDiff; t.choiceDiff += l.choiceDiff; t.totalDiff += l.totalDiff;
-    if (l.agreed != null) t.atAgreed += l.paid - l.priceDiff; else t.withoutAgreed++;
-    if (l.best != null) t.atBest += l.paid - l.totalDiff; else t.withoutBest++;
+    if (l.agreed != null) t.atAgreed += l.paid - l.priceDiff; else if (l.status !== 'credit') t.withoutAgreed++;
+    if (l.best != null) t.atBest += l.paid - l.totalDiff; else if (l.status !== 'credit') t.withoutBest++;
     if (l.status !== 'ok' && l.status !== 'sub') t.issues += 1;
     if (l.isCheapest === false) t.notCheapest += 1;
     t.savings += l.savings;

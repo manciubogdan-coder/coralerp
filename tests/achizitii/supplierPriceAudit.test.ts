@@ -109,3 +109,16 @@ _t('billed at the cheapest price counts as cheapest with no choice loss', () => 
   const l = _al({ id: 1, day: '2026-10-05', tip: 'FF', doc: '1', art: 'PDZ', um: 'KG', q: 901, pron: 0, vron: 0, pref: null, cur: 'EUR', rate: null, sup: 'A', peur: 0.75 }, list);
   _e(l.isCheapest).toBe(true); _e(l.choiceDiff).toBe(0); _e(l.totalDiff).toBeCloseTo(0);
 });
+
+describe('credit notes / returns (negative quantity)', () => {
+  it('are never counted as billed over/under the list or as a purchase from the wrong supplier', () => {
+    const credit = auditLine(line('Alphacom Italia', 2.0, -40), list);
+    expect(credit.status).toBe('credit');
+    expect(credit.isCheapest).toBeNull();
+    const t = totals([auditLine(line('Alphacom Italia', 2.05, 100), list), credit]);
+    expect(t.overLines + t.underLines).toBe(0);
+    expect(t.lines).toBe(1);
+    expect(t.notCheapest).toBe(1);
+    expect(t.creditLines).toBe(1);
+  });
+});

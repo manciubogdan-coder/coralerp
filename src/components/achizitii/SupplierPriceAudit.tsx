@@ -24,18 +24,18 @@ const qf = (n: number) => n.toLocaleString('ro-RO', { maximumFractionDigits: 1 }
 const signed = (n: number | null) => n == null ? <span className="text-muted-foreground">—</span> : <span className={cn('tabular-nums', n > 0.005 && 'text-destructive font-semibold', n < -0.005 && 'text-primary')}>{n > 0.005 ? '+' : ''}{eur(n)}</span>;
 const STATUS: Record<LineStatus, { label: string; v: 'destructive' | 'outline' | 'secondary' }> = {
   ok: { label: 'Preț respectat', v: 'outline' }, peste: { label: 'Peste prețul convenit', v: 'destructive' }, sub: { label: 'Sub prețul convenit', v: 'secondary' },
-  fara_pret: { label: 'Fără listă valabilă / preț', v: 'secondary' }, necunoscut: { label: 'Furnizor nelistat', v: 'secondary' },
+  fara_pret: { label: 'Fără listă valabilă / preț', v: 'secondary' }, necunoscut: { label: 'Furnizor nelistat', v: 'secondary' }, credit: { label: 'Retur / notă de credit', v: 'outline' },
 };
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const firstOfPrevMonth = () => { const d = new Date(); return iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))); };
 
 type CardKey = 'paid' | 'over' | 'notCheapest' | 'savings' | 'choice';
 const CARD_INFO: Record<CardKey, { title: string; how: string; pick: (l: AuditLine) => boolean; val: (l: AuditLine) => number }> = {
-  paid: { title: 'Valoare facturată', how: 'Suma tuturor rândurilor din facturile Senior (FF/FFI/FFIC) din perioada aleasă: cantitate × preț facturat, transformat în EUR la cursul BNR din ziua facturii.', pick: () => true, val: (l) => l.paid },
+  paid: { title: 'Valoare facturată', how: 'Suma tuturor rândurilor din facturile Senior (FF/FFI/FFIC) din perioada aleasă: cantitate × preț facturat, în EUR la cursul BNR din ziua facturii. Rândurile cu cantitate negativă (retururi, note de credit pentru calitate) scad valoarea. Nu sunt numărate ca facturare peste/sub listă (cardul 1) și nici ca rânduri cumpărate greșit (cardul 2); la cardurile 3 și 4 scad din sumă, pentru că acei kg nu i-am plătit până la urmă.', pick: () => true, val: (l) => l.paid },
   over: { title: '1. Facturat peste / sub lista furnizorului', how: 'Pentru fiecare rând: (preț facturat − preț din lista furnizorului valabilă în ziua facturii) × cantitate. Cardul arată doar suma rândurilor PESTE listă; rândurile SUB listă apar tot aici, separat (cu minus).', pick: (l) => l.status === 'peste' || l.status === 'sub', val: (l) => l.priceDiff },
   notCheapest: { title: '2. Rânduri cumpărate NU de la cel mai ieftin', how: 'Rândurile unde prețul plătit a fost mai mare decât cel mai mic preț din listele valabile ale tuturor furnizorilor pentru același produs, în ziua facturii.', pick: (l) => l.isCheapest === false, val: (l) => l.savings },
-  savings: { title: '3. Cât economiseam la cel mai mic preț', how: 'Pentru fiecare rând: (preț facturat − cel mai mic preț din liste) × cantitate, doar unde am plătit mai mult. Suma acestor rânduri = cardul.', pick: (l) => Math.abs(l.savings) > 0.005, val: (l) => l.savings },
-  choice: { title: '4. Pierdut că n-am luat de la cel mai ieftin', how: 'Pentru fiecare rând: (prețul din lista furnizorului ales − cel mai mic preț din liste) × cantitate. Arată cât costă alegerea furnizorului, independent de ce a facturat el.', pick: (l) => Math.abs(l.choiceDiff) > 0.005, val: (l) => l.choiceDiff },
+  savings: { title: '3. Cât economiseam la cel mai mic preț', how: 'Pentru fiecare rând: (preț facturat − cel mai mic preț din liste) × cantitate, doar unde am plătit mai mult. Retururile/notele de credit apar cu minus și scad suma (calculul se face pe cantitatea netă). Suma acestor rânduri = cardul.', pick: (l) => Math.abs(l.savings) > 0.005, val: (l) => l.savings },
+  choice: { title: '4. Pierdut că n-am luat de la cel mai ieftin', how: 'Pentru fiecare rând: (prețul din lista furnizorului ales − cel mai mic preț din liste) × cantitate. Arată cât costă alegerea furnizorului, independent de ce a facturat el. Retururile/notele de credit apar cu minus.', pick: (l) => Math.abs(l.choiceDiff) > 0.005, val: (l) => l.choiceDiff },
 };
 
 const Summary: React.FC<{ t: Totals; lines: AuditLine[] }> = ({ t, lines }) => {
@@ -48,7 +48,7 @@ const Summary: React.FC<{ t: Totals; lines: AuditLine[] }> = ({ t, lines }) => {
   {(t.withoutAgreed > 0 || t.withoutBest > 0) && <p className="text-sm text-destructive">Comparație incompletă: {t.withoutAgreed} rânduri fără preț valabil la furnizorul ales; {t.withoutBest} fără preț minim valabil. Aceste rânduri nu sunt incluse în comparațiile respective.</p>}
   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
     {([
-      ['paid', 'Valoare facturată', eur(t.paid), ''],
+      ['paid', 'Valoare facturată (netă)', eur(t.paid), t.creditLines ? `include ${t.creditLines} retururi/note de credit: ${eur(t.credit)}` : ''],
       ['over', '1. Facturat PESTE lista furnizorului', null, `${t.overLines} rânduri · separat, ${t.underLines} rânduri facturate SUB listă: ${eur(t.under)}`, t.over],
       ['notCheapest', '2. Rânduri cumpărate NU de la cel mai ieftin', String(t.notCheapest), `din ${t.lines} rânduri de factură`],
       ['savings', '3. Cât economiseam la cel mai mic preț', null, 'doar rânduri plătite peste cel mai mic preț din liste', t.savings],
