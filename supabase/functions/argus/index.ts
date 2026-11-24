@@ -32,7 +32,7 @@ import { validateHallLayout } from "../_shared/hallLayoutRules.ts";
 import { officeActivity, saveOfficeConfig } from "../_shared/officeActivity.ts";
 import { viziunePallets } from "../_shared/viziunePallets.ts";
 import { cleanCopilotRequest, copilotInstructions, parseCopilotReply, voiceText, COPILOT_LIMITS } from "../_shared/viziuneCopilotRules.ts";
-import { generateSpeech, transcribeAudio, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.13";
+import { generateSpeech, streamSpeech, transcribeAudio, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.13";
 import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
@@ -821,6 +821,29 @@ Deno.serve(async (req) => {
           const blob = await audio.blob();
           return json({ audio: encodeBase64(new Uint8Array(await blob.arrayBuffer())), type: audio.contentType || 'audio/wav' });
         } catch (e) { return json({ error: e instanceof GatewayError ? `Vocea nu e disponibilă (${e.code}).` : friendlyError(e) }, 400); }
+      }
+      case 'viziune_voice_stream': {
+        // Same voice, streamed: raw 16-bit 24 kHz mono PCM bytes as they are synthesised, so Argus starts talking in under a second.
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const text = voiceText((await req.json().catch(() => ({})))?.text);
+        if (!text) return json({ error: 'Nimic de spus.' }, 400);
+        let events: AsyncIterable<any>;
+        try {
+          events = await streamSpeech({
+            model: 'google/gemini-3.1-flash-tts-preview',
+            contents: [{ role: 'user', parts: [{ text: `Spune pe un ton calm, sigur și prietenos, ca un prezentator: ${text}` }] }],
+            generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } } },
+          } as any, { signal: req.signal }) as any;
+        } catch (e) { return json({ error: e instanceof GatewayError ? `Vocea nu e disponibilă (${e.code}).` : friendlyError(e) }, 400); }
+        const body = new ReadableStream<Uint8Array>({
+          async start(ctrl) {
+            try {
+              for await (const e of events) if (e?.type === 'speech.audio.delta' && e.audio) ctrl.enqueue(decodeBase64(e.audio));
+            } catch (e) { console.error('viziune_voice_stream', e); }
+            ctrl.close();
+          },
+        });
+        return new Response(body, { headers: { ...corsHeaders, 'Content-Type': 'audio/L16; rate=24000; channels=1', 'Cache-Control': 'no-store' } });
       }
       case 'viziune_layout': {
         const { data, error } = await c.cloud.from('viziune_hala_layout').select('stations, updated_by, updated_at').maybeSingle();

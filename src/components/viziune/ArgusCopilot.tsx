@@ -2,7 +2,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { argusFetch } from "@/lib/argusApi";
+import { argusFetch, argusHeaders, ARGUS_URL } from "@/lib/argusApi";
+import { decodePcm16, nextStart, VOICE_FIRST_SEC, VOICE_NEXT_SEC, VOICE_RATE } from "@/lib/viziune/pcmStream";
 import { Loader2, Mic, Send, Sparkles, Square, Volume2, VolumeX, X } from "lucide-react";
 import type { CopilotTarget } from "../../../supabase/functions/_shared/viziuneCopilotRules";
 
@@ -46,20 +47,88 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
   const setVoice = (v: boolean) => { setVoiceState(v); try { localStorage.setItem(VOICE_KEY, v ? "on" : "off"); } catch { /* private mode */ } if (!v) stopAudio(); };
   const rec = useRef<{ r: MediaRecorder; chunks: Blob[]; timer: number; stream: MediaStream } | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
+  const ctx = useRef<AudioContext | null>(null);
+  const stream = useRef<{ stop: () => void } | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const turnsRef = useRef(turns); turnsRef.current = turns;
   const canRecord = typeof window !== "undefined" && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== "undefined";
 
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: "smooth" }); }, [turns, busy]);
-  useEffect(() => () => { stopAudio(); rec.current?.stream.getTracks().forEach((t) => t.stop()); }, []);
+  useEffect(() => () => { stopAudio(); rec.current?.stream.getTracks().forEach((t) => t.stop()); void ctx.current?.close().catch(() => undefined); }, []);
 
   function stopAudio() {
     audio.current?.pause(); audio.current = null;
+    stream.current?.stop(); stream.current = null;
     try { window.speechSynthesis?.cancel(); } catch { /* not supported */ }
     setBusy((b) => (b === "vorbeste" ? "" : b));
   }
 
+  /** Created inside the click/key press that asks, so the browser lets it play later. */
+  const unlockAudio = () => {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!Ctx) return;
+      if (!ctx.current || ctx.current.state === "closed") ctx.current = new Ctx();
+      if (ctx.current.state === "suspended") void ctx.current.resume();
+    } catch { /* no Web Audio */ }
+  };
+
+  /** Plays the voice while it is still being made: the first words start in about a second. */
+  const speakStreamed = async (answer: string): Promise<boolean> => {
+    const ac = ctx.current;
+    if (!ac || typeof ReadableStream === "undefined") return false;
+    if (ac.state === "suspended") await ac.resume().catch(() => undefined);
+    const ctrl = new AbortController();
+    const sources = new Set<AudioBufferSourceNode>();
+    let queuedUntil = 0, ended = false, started = false;
+    const finish = () => { if (ended && sources.size === 0 && stream.current === play) { stream.current = null; setBusy((b) => (b === "vorbeste" ? "" : b)); } };
+    const play = { stop: () => { ctrl.abort(); sources.forEach((src) => { try { src.stop(); } catch { /* already stopped */ } }); sources.clear(); } };
+    stream.current = play;
+    const schedule = (pcm: Float32Array) => {
+      if (!pcm.length || stream.current !== play) return;
+      const buf = ac.createBuffer(1, pcm.length, VOICE_RATE);
+      buf.getChannelData(0).set(pcm);
+      const src = ac.createBufferSource();
+      src.buffer = buf; src.connect(ac.destination);
+      const at = nextStart(ac.currentTime, queuedUntil);
+      src.start(at); queuedUntil = at + buf.duration; started = true;
+      sources.add(src);
+      src.onended = () => { sources.delete(src); finish(); };
+    };
+    try {
+      const res = await fetch(`${ARGUS_URL}?action=viziune_voice_stream`, {
+        method: "POST", signal: ctrl.signal,
+        headers: { ...(await argusHeaders()), "Content-Type": "application/json" },
+        body: JSON.stringify({ text: answer }),
+      });
+      if (!res.ok || !res.body || !/audio/i.test(res.headers.get("content-type") ?? "")) return false;
+      const reader = res.body.getReader();
+      let carry: number | null = null, pending: Float32Array[] = [], pendingLen = 0;
+      const flush = () => {
+        if (!pendingLen) return;
+        const all = new Float32Array(pendingLen); let o = 0;
+        for (const p of pending) { all.set(p, o); o += p.length; }
+        pending = []; pendingLen = 0; schedule(all);
+      };
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const d = decodePcm16(value, carry); carry = d.carry;
+        pending.push(d.samples); pendingLen += d.samples.length;
+        if (pendingLen >= VOICE_RATE * (started ? VOICE_NEXT_SEC : VOICE_FIRST_SEC)) flush();
+      }
+      flush();
+      ended = true; finish();
+      return started;
+    } catch {
+      ended = true; finish();
+      return started || ctrl.signal.aborted;
+    }
+  };
+
   const speak = async (answer: string) => {
+    setBusy("vorbeste");
+    if (await speakStreamed(answer)) return;
     setBusy("vorbeste");
     try {
       const r = await argusFetch<{ audio?: string; type?: string; error?: string }>("viziune_voice", {}, { text: answer });
@@ -75,7 +144,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
   };
 
   const ask = useCallback(async (payload: { question?: string; audio?: string; type?: string }) => {
-    onAsk?.(); stopAudio();
+    onAsk?.(); stopAudio(); if (voice) unlockAudio();
     const history = turnsRef.current.filter((t) => !t.error).slice(-6).map((t) => ({ role: t.role, text: t.text }));
     if (payload.question) setTurns((t) => [...t, { role: "user", text: payload.question! }]);
     setBusy("gandeste");
@@ -124,7 +193,7 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
     clearTimeout(c.timer);
     if (c.r.state !== "inactive") c.r.stop();
   }
-  const toggleMic = () => { if (rec.current) stopRecording(); else startRecording(); };
+  const toggleMic = () => { if (voice) unlockAudio(); if (rec.current) stopRecording(); else startRecording(); };
 
   // M = talk to Argus (press again to send), anywhere on the page except while typing.
   useEffect(() => {
