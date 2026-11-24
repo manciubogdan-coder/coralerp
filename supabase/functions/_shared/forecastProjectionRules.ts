@@ -89,3 +89,10 @@ export function requiresPurchasingProjection(question: string) {
   const q = projectionMaterialKey(question);
   return /stoc|ajung|ajunc|cat.*tine|consum.*medi|medi.*consum/.test(q);
 }
+
+/** Enforce source selection on the first model step, not just in prose instructions. */
+export function purchasingProjectionStep(question: string, stepNumber: number) {
+  return stepNumber === 0 && requiresPurchasingProjection(question)
+    ? { toolChoice: { type: 'tool' as const, toolName: 'stoc_si_proiectie_achizitii' as const } }
+    : undefined;
+}

@@ -4,6 +4,7 @@ import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Client
 import { describeFilters, validFilters } from "./agentFilters.ts";
 import { priceTools } from "./priceTool.ts";
 import { forecastTools } from "./forecastTool.ts";
+import { purchasingProjectionStep } from '../_shared/forecastProjectionRules.ts';
 import { loadMemory } from "./memoryStore.ts";
 import { runLive, validLiveSpec } from "./liveReports.ts";
 import { memoryTools } from "./memory.ts";
@@ -95,6 +96,7 @@ Pentru pie_chart folosește o singură serie. ${pref}`;
       model,
       providerOptions: { openai: { store: false, include: ["reasoning.encrypted_content"] } },
       tools: agentTools(c, querySchema),
+      prepareStep: ({ stepNumber }) => purchasingProjectionStep(`${t.title}\n${t.description ?? ''}\n${t.prompt_instructions}${filters.text}`, stepNumber),
       stopWhen: isStepCount(30),
       instructions,
       prompt: `Agent: ${t.title}\n${t.description ?? ""}\nInstrucțiuni: ${t.prompt_instructions}${filters.text}`,

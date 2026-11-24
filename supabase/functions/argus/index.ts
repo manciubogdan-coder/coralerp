@@ -35,6 +35,7 @@ import { cleanCopilotRequest, parseCopilotReply, voiceText, COPILOT_LIMITS } fro
 import { generateSpeech, streamSpeech, transcribeAudio, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.13";
 import type {} from "../_shared/generated/ai-gateway/models.d.ts";
 import { speechRetryResponse, transcriptText } from "../_shared/copilotTranscription.ts";
+import { purchasingProjectionStep } from '../_shared/forecastProjectionRules.ts';
 import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
@@ -188,7 +189,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     prepareStep: ({ stepNumber }: { stepNumber: number }) =>
       stepNumber >= 22
         ? { toolChoice: "none" as const }
-        : undefined,
+        : purchasingProjectionStep(messageText([...messages].reverse().find(m => m.role === 'user')), stepNumber),
     // No client abort: the answer keeps running and is saved even if the user leaves the page.
   });
 

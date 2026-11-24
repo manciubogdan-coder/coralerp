@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { projectionDemand, requiresPurchasingProjection, weekdayAverages, reconcileProjection } from '../../supabase/functions/_shared/forecastProjectionRules';
+import { projectionDemand, requiresPurchasingProjection, purchasingProjectionStep, weekdayAverages, reconcileProjection } from '../../supabase/functions/_shared/forecastProjectionRules';
 import { weekdayAverages as screenAverages, reconcileProjection as screenProjection } from '../../src/lib/forecastReconciliation';
 
 describe('Argus and Achiziții projection parity', () => {
+  it('chat and scheduled agents must read the purchasing source first for stock/coverage', () => {
+    expect(purchasingProjectionStep('Stoc rucola și cât ajunge', 0)).toEqual({toolChoice:{type:'tool',toolName:'stoc_si_proiectie_achizitii'}});
+    expect(purchasingProjectionStep('Stoc rucola și cât ajunge', 1)).toBeUndefined();
+    expect(purchasingProjectionStep('Vânzări Metro', 0)).toBeUndefined();
+  });
   it('uses the same functions as the daily projection screen', () => {
     expect(screenAverages).toBe(weekdayAverages);
     expect(screenProjection).toBe(reconcileProjection);
