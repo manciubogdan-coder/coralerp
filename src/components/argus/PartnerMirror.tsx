@@ -199,7 +199,11 @@ export default function PartnerMirror() {
   const thisYear = new Date().getFullYear();
 
   const range = () => {
-    if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
+    if (period === "custom") {
+      const toDate = to ? new Date(`${to}T00:00:00Z`) : new Date();
+      if (Number.isNaN(toDate.getTime())) return { start: from, end: day(new Date()) };
+      return { start: from, end: day(new Date(toDate.getTime() + 86400_000)) };
+    }
     const end = new Date(); end.setUTCDate(end.getUTCDate() + 1);
     const start = new Date(); start.setUTCMonth(start.getUTCMonth() - Number(period));
     return { start: day(start), end: day(end) };
