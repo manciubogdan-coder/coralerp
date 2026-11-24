@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
@@ -28,24 +29,47 @@ const STATUS: Record<LineStatus, { label: string; v: 'destructive' | 'outline' |
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const firstOfPrevMonth = () => { const d = new Date(); return iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1))); };
 
-const Summary: React.FC<{ t: Totals }> = ({ t }) => (
+type CardKey = 'paid' | 'over' | 'notCheapest' | 'savings' | 'choice';
+const CARD_INFO: Record<CardKey, { title: string; how: string; pick: (l: AuditLine) => boolean; val: (l: AuditLine) => number }> = {
+  paid: { title: 'Valoare facturată', how: 'Suma tuturor rândurilor din facturile Senior (FF/FFI/FFIC) din perioada aleasă: cantitate × preț facturat, transformat în EUR la cursul BNR din ziua facturii.', pick: () => true, val: (l) => l.paid },
+  over: { title: '1. Facturat peste / sub lista furnizorului', how: 'Pentru fiecare rând: (preț facturat − preț din lista furnizorului valabilă în ziua facturii) × cantitate. Cardul arată doar suma rândurilor PESTE listă; rândurile SUB listă apar tot aici, separat (cu minus).', pick: (l) => l.status === 'peste' || l.status === 'sub', val: (l) => l.priceDiff },
+  notCheapest: { title: '2. Rânduri cumpărate NU de la cel mai ieftin', how: 'Rândurile unde prețul plătit a fost mai mare decât cel mai mic preț din listele valabile ale tuturor furnizorilor pentru același produs, în ziua facturii.', pick: (l) => l.isCheapest === false, val: (l) => l.savings },
+  savings: { title: '3. Cât economiseam la cel mai mic preț', how: 'Pentru fiecare rând: (preț facturat − cel mai mic preț din liste) × cantitate, doar unde am plătit mai mult. Suma acestor rânduri = cardul.', pick: (l) => Math.abs(l.savings) > 0.005, val: (l) => l.savings },
+  choice: { title: '4. Pierdut că n-am luat de la cel mai ieftin', how: 'Pentru fiecare rând: (prețul din lista furnizorului ales − cel mai mic preț din liste) × cantitate. Arată cât costă alegerea furnizorului, independent de ce a facturat el.', pick: (l) => Math.abs(l.choiceDiff) > 0.005, val: (l) => l.choiceDiff },
+};
+
+const Summary: React.FC<{ t: Totals; lines: AuditLine[] }> = ({ t, lines }) => {
+  const [openCard, setOpenCard] = useState<CardKey | null>(null);
+  const info = openCard ? CARD_INFO[openCard] : null;
+  const picked = info ? lines.filter(info.pick).sort((a, b) => Math.abs(info.val(b)) - Math.abs(info.val(a))) : [];
+  const sum = info ? picked.reduce((s, l) => s + info.val(l), 0) : 0;
+  return (
   <div className="space-y-2">
   {(t.withoutAgreed > 0 || t.withoutBest > 0) && <p className="text-sm text-destructive">Comparație incompletă: {t.withoutAgreed} rânduri fără preț valabil la furnizorul ales; {t.withoutBest} fără preț minim valabil. Aceste rânduri nu sunt incluse în comparațiile respective.</p>}
   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-    {[
-      ['Valoare facturată', eur(t.paid), ''],
-      ['1. Facturat PESTE lista furnizorului', null, `${t.overLines} rânduri · separat, ${t.underLines} rânduri facturate SUB listă: ${eur(t.under)}`, t.over],
-      ['2. Rânduri cumpărate NU de la cel mai ieftin', String(t.notCheapest), `din ${t.lines} rânduri de factură`],
-      ['3. Cât economiseam la cel mai mic preț', null, 'doar rânduri plătite peste cel mai mic preț din liste', t.savings],
-      ['4. Pierdut că n-am luat de la cel mai ieftin', null, 'diferența de listă: furnizorul ales vs cel mai ieftin', t.choiceDiff],
-    ].map(([title, val, hint, diff]) => (
-      <Card key={String(title)}><CardContent className="p-3">
+    {([
+      ['paid', 'Valoare facturată', eur(t.paid), ''],
+      ['over', '1. Facturat PESTE lista furnizorului', null, `${t.overLines} rânduri · separat, ${t.underLines} rânduri facturate SUB listă: ${eur(t.under)}`, t.over],
+      ['notCheapest', '2. Rânduri cumpărate NU de la cel mai ieftin', String(t.notCheapest), `din ${t.lines} rânduri de factură`],
+      ['savings', '3. Cât economiseam la cel mai mic preț', null, 'doar rânduri plătite peste cel mai mic preț din liste', t.savings],
+      ['choice', '4. Pierdut că n-am luat de la cel mai ieftin', null, 'diferența de listă: furnizorul ales vs cel mai ieftin', t.choiceDiff],
+    ] as [CardKey, string, string | null, string, number?][]).map(([key, title, val, hint, diff]) => (
+      <Card key={key} role="button" tabIndex={0} onClick={() => setOpenCard(key)} onKeyDown={(e) => e.key === 'Enter' && setOpenCard(key)} className="cursor-pointer transition-colors hover:border-primary"><CardContent className="p-3">
         <div className="text-xs text-muted-foreground">{title}</div>
         <div className="text-lg font-bold">{diff != null ? signed(Number(diff)) : val}</div>
         {hint && <div className="text-[11px] text-muted-foreground">{hint}</div>}
+        <div className="text-[10px] text-primary mt-1">Clic: de unde vine cifra</div>
       </CardContent></Card>))}
-  </div></div>
-);
+  </div>
+  <Dialog open={!!info} onOpenChange={(o) => !o && setOpenCard(null)}>
+    <DialogContent className="max-w-[95vw] w-[1400px] max-h-[90vh] flex flex-col">
+      {info && <><DialogHeader><DialogTitle>{info.title}</DialogTitle><DialogDescription>{info.how}</DialogDescription></DialogHeader>
+      <p className="text-sm"><b>{picked.length}</b> rânduri de factură · total {openCard === 'notCheapest' ? 'economie posibilă pe ele' : 'calculat'}: <b>{signed(sum)}</b></p>
+      <div className="min-h-0 flex-1">{picked.length ? <LinesTable lines={picked} /> : <p className="text-sm text-muted-foreground">Niciun rând nu contribuie la această cifră.</p>}</div></>}
+    </DialogContent>
+  </Dialog>
+  </div>);
+};
 
 const LinesTable: React.FC<{ lines: AuditLine[] }> = ({ lines }) => (
   <Table wrapperClassName="max-h-[60vh] overflow-auto"><TableHeader><TableRow>
@@ -163,7 +187,7 @@ const SupplierPriceAudit: React.FC = () => {
         <div className="overflow-x-auto"><TabsList className="w-max justify-start"><TabsTrigger value="produs">Pe ingredient</TabsTrigger><TabsTrigger value="furnizor">Pe furnizor</TabsTrigger><TabsTrigger value="linii">Toate facturile</TabsTrigger><TabsTrigger value="lista">Lista de prețuri</TabsTrigger></TabsList></div>
         {(['produs', 'furnizor', 'linii'] as const).map((v) => <TabsContent key={v} value={v} className="space-y-3">
           {!raw ? <p className="text-sm text-muted-foreground p-4">Alege perioada și apasă „Analizează facturile”.</p> : <>
-            <Summary t={t} />
+            <Summary t={t} lines={lines} />
             {!auditList.periods?.length && <p className="text-sm text-muted-foreground">Prețuri din lista inițială, fără valabilitate confirmată. Comparația istorică devine verificabilă după adăugarea perioadelor reale.</p>}
             <Card><CardContent className="p-0">
               {v === 'produs' && <Grouped groups={byProduct} prefix="p:" label="Ingredient" />}
