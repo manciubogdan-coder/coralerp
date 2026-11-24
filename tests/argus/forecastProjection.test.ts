@@ -3,6 +3,16 @@ import { projectionDemand, requiresPurchasingProjection, purchasingProjectionSte
 import { weekdayAverages as screenAverages, reconcileProjection as screenProjection } from '../../src/lib/forecastReconciliation';
 
 describe('Argus and Achiziții projection parity', () => {
+  for (const question of ['Iceberg cât am pe stoc?', 'Spanac cât îmi ajunge marfa?', 'Folie ambalaje consum mediu', 'Etichete cât mă ține stocul?']) {
+    it(`uses the purchasing projection for ${question}`, () => {
+      expect(purchasingProjectionStep(question, 0)?.toolChoice.toolName).toBe('stoc_si_proiectie_achizitii');
+    });
+  }
+  it('leaves explicit Senior accounting stock and finished stock to their own tools', () => {
+    expect(purchasingProjectionStep('Ce stoc contabil am în Senior?', 0)).toBeUndefined();
+    expect(purchasingProjectionStep('Cât stoc de produse finite am în picking?', 0)).toBeUndefined();
+    expect(purchasingProjectionStep('Compară stocul fizic din aplicație cu Senior pentru rucola', 0)?.toolChoice.toolName).toBe('stoc_si_proiectie_achizitii');
+  });
   it('chat and scheduled agents must read the purchasing source first for stock/coverage', () => {
     expect(purchasingProjectionStep('Stoc rucola și cât ajunge', 0)).toEqual({toolChoice:{type:'tool',toolName:'stoc_si_proiectie_achizitii'}});
     expect(purchasingProjectionStep('Stoc rucola și cât ajunge', 1)).toBeUndefined();

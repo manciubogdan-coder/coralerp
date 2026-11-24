@@ -87,6 +87,11 @@ export function projectionDemand(actual: Record<string, number>, averages: numbe
 
 export function requiresPurchasingProjection(question: string) {
   const q = projectionMaterialKey(question);
+  // Explicit accounting/finished-goods questions need their own read tools, not a raw-material lookup.
+  const warehouse = /materi[ae]prim|ambalaj|etichet|forecast|proiect|achizitii/.test(q);
+  const application = warehouse || /aplicatie|fizic|depozit/.test(q);
+  if (/senior|contabil|gestiuneerp/.test(q) && !application) return false;
+  if (/produsefinit|produsfinit|marfafinal|restoc|picking/.test(q) && !warehouse) return false;
   return /stoc|ajung|ajunc|cat.*tine|consum.*medi|medi.*consum/.test(q);
 }
 

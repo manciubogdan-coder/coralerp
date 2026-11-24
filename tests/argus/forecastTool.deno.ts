@@ -1,7 +1,7 @@
 import { purchasingForecast } from '../../supabase/functions/argus/forecastTool.ts';
 import type { Clients } from '../../supabase/functions/argus/data.ts';
 
-function fixture(snapshot = true) {
+function fixture(snapshot = true, prefix = '', name = 'Rucola') {
   const data: Record<string, any[]> = {
     products: [{id:'r',name:'Rucola',default_unit:'kg'}],
     daily_stock_snapshots: snapshot ? [{id:'s',name:'Rucola',product_id:'old',quantity:3000,unit:'kg',snapshot_date:'2026-11-24'}] : [],
@@ -13,8 +13,19 @@ function fixture(snapshot = true) {
     stock_transfer_items: Array.from({length:1201},(_,i)=>({id:`i${i}`,transfer_id:'t',inventory_item_id:'oldlot',net_quantity:2000,quantity:2100,unit:'g'})),
   };
   const calls: string[] = [];
+  for (const rows of Object.values(data)) for (const row of rows) {
+    if (row.name) row.name = name;
+    if (prefix && row.unit) {
+      if (row.unit === 'g') {
+        if (row.net_quantity !== undefined) row.net_quantity /= 1000;
+        if (row.quantity !== undefined) row.quantity /= 1000;
+      }
+      row.unit = 'buc';
+    }
+    if (prefix && row.default_unit) row.default_unit = 'buc';
+  }
   const legacy = {from(table:string) {
-    calls.push(table); let rows=[...(data[table]||[])];
+    calls.push(table); let rows=[...(data[table.slice(prefix.length)]||[])];
     const b = { select:()=>b, order:()=>b, gte:()=>b, lte:()=>b,
       gt:(field:string,n:number)=>{rows=rows.filter(r=>r[field]>n);return b;},
       eq:(field:string,v:unknown)=>{rows=rows.filter(r=>r[field]===v);return b;},
@@ -34,4 +45,18 @@ Deno.test('missing product snapshot cannot turn current stock into forecast open
   const {c}=fixture(false);const result=await purchasingForecast(c,'rucola','materii-prime',3,'2026-11-24');
   if(!('produse' in result)||!result.produse)throw new Error('No product');const p=result.produse[0];
   if(p.stoc_inceput_azi!==null||p.proiectie.length||!p.avertisment)throw new Error('Unverified coverage presented as real');
+});
+
+for (const [warehouse, prefix, name] of [
+  ['materii-prime', '', 'Iceberg'],
+  ['ambalaje', 'ambalaje_', 'Caserolă 500'],
+  ['etichete', 'etichete_', 'Etichetă Atlantic'],
+]) Deno.test(`${warehouse}: same projection for ${name}, own tables and units`, async () => {
+  const { c, calls } = fixture(true, prefix, name);
+  const value = await purchasingForecast(c, name, warehouse, 3, '2026-11-24');
+  if (!('produse' in value) || !value.produse) throw new Error('No product');
+  const p = value.produse[0];
+  if (p.produs !== name || p.total_28_zile !== 2402 || p.stoc_fizic_acum !== 10 || p.stoc_inceput_azi !== 3000) throw new Error('Product-specific or warehouse regression');
+  if (p.unitate !== (prefix ? 'buc' : 'kg') || p.proiectie[1].stoc_final !== 2699.5) throw new Error('Wrong unit or double-counted delivery');
+  if (calls.some(table => prefix && !table.startsWith(prefix))) throw new Error('Read from another warehouse');
 });

@@ -9,6 +9,7 @@ import { loadMemory } from "./memoryStore.ts";
 import { runLive, validLiveSpec } from "./liveReports.ts";
 import { memoryTools } from "./memory.ts";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
+import { readTools } from './readTools.ts';
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const WIDGETS = ["bar_chart", "line_chart", "pie_chart", "kpi", "table", "markdown"];
 
@@ -16,6 +17,7 @@ const tableList = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).jo
 
 export function agentTools(c: Clients, querySchema: unknown) {
   return {
+    schema_context: readTools(c).schema_context,
     ...priceTools(c),
     ...forecastTools(c),
     // Agents need the same live Senior access as chat: invoices, purchases, partners, stocks.
@@ -74,6 +76,7 @@ ${memory}
 </memorie_permanenta>
 Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Pentru cost/preț de produs finit folosește calculeaza_pret (calcul exact din Senior) și redă cifrele lui neschimbate. Fă cât mai puține interogări, dar suficiente ca să ai cifre reale.
 Pentru stoc, consum mediu și acoperire materii prime/ambalaje/etichete folosește obligatoriu stoc_si_proiectie_achizitii; nu estima din stoc ÷ medie generică. Distinge stocul fizic de începutul zilei; lipsa snapshotului face proiecția neverificabilă.
+Regulile se aplică tuturor produselor. Pentru restoc finit/picking citește aplicația, pentru stoc contabil citește Senior; o întrebare mixtă necesită ambele surse, cu valori separate, nu substituite. Continuă investigația după primul instrument. Folosește schema_context cu numele tabelului ca să verifici coloanele reale înaintea interogării; pentru CRM exclude exemplele și simulările din cifrele reale.
 Date din aplicație (interogare_date / metrici_perioada):
 ${tableList}
 Senior ERP LIVE (senior_cauta_tabele / senior_descrie_tabel / senior_sql) — sursa pentru facturi, achiziții, vânzări, prețuri, parteneri, articole, stocuri, contabilitate:

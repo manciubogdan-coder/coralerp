@@ -42,7 +42,17 @@ export function readTools(c: ReturnType<typeof makeClients>, threadId = "", mess
     schema_context: tool({
       description: "Schema și reguli la cerere. Domeniu 'senior' sau nume de tabel din aplicație.",
       inputSchema: jsonSchema<{ domeniu: string }>({ type: 'object', additionalProperties: false, required: ['domeniu'], properties: { domeniu: { type: 'string' } } }),
-      execute: async ({ domeniu }) => domeniu === 'senior' ? { ghid: SENIOR_GUIDE } : TABLES[domeniu] ?? { eroare: 'Tabel necunoscut' },
+      execute: async ({ domeniu }) => {
+        if (domeniu === 'senior') return { ghid: SENIOR_GUIDE };
+        const table = TABLES[domeniu];
+        if (!table) return { eroare: 'Tabel necunoscut' };
+        // Inspect only keys, never return a business row as schema or expose non-allowlisted tables.
+        try {
+          const { data, error } = await c[table.db].from(domeniu).select('*').range(0, 0);
+          if (error) return { ...table, eroare: `Schema nu poate fi verificată: ${error.message}` };
+          return { ...table, coloane: Object.keys(data?.[0] ?? {}), avertisment: data?.length ? null : 'Tabel gol; coloanele nu pot fi deduse din rânduri.' };
+        } catch (e) { return { ...table, eroare: `Schema nu poate fi verificată: ${(e as Error).message}` }; }
+      },
     }),
     citeste_istoric: tool({
       description: "Recuperează exact mesaje dintr-o conversație Argus (a ta sau a altui utilizator al firmei), pe poziții 1-based (max 20). Id-ul vine din cauta_conversatii.",

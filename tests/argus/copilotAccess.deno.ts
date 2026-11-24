@@ -1,5 +1,32 @@
 import { answerCopilot, copilotResponse } from "../../supabase/functions/argus/copilot.ts";
 import { readTools } from "../../supabase/functions/argus/readTools.ts";
+import { TABLES } from '../../supabase/functions/argus/data.ts';
+import { agentTools } from '../../supabase/functions/argus/agents.ts';
+
+Deno.test('all warehouse business reads, finished stock and CRM are available without secret tables', () => {
+  for (const prefix of ['', 'ambalaje_', 'etichete_']) for (const suffix of ['products', 'inventory', 'reception_records', 'stock_transfers', 'stock_transfer_items', 'daily_stock_snapshots', 'product_orders']) {
+    if (TABLES[`${prefix}${suffix}`]?.db !== 'legacy') throw new Error(`Missing warehouse source ${prefix}${suffix}`);
+  }
+  if (TABLES.productie_restocari?.db !== 'legacy' || TABLES.crm_orders?.db !== 'cloud') throw new Error('Missing business sources');
+  for (const table of ['quality_email_settings', 'quality_email_routes', 'push_subscriptions', 'app_user_roles', 'auth.users', 'vault.secrets']) {
+    if (TABLES[table]) throw new Error(`Sensitive table exposed: ${table}`);
+  }
+});
+
+Deno.test('application schema gives real keys without returning row values or reading unknown tables', async () => {
+  let reads = 0;
+  const legacy = { from: () => ({ select: () => ({ range: async () => { reads++; return { data: [{ id: 'private-id', cantitate_surplus: 42 }], error: null }; } }) }) };
+  const c = { legacy, cloud: legacy, legacyUser: legacy } as unknown as Parameters<typeof readTools>[0];
+  const schema = readTools(c).schema_context;
+  const result = await schema.execute?.({ domeniu: 'productie_restocari' }, { toolCallId: 'schema', messages: [], context: {} });
+  if (!result || !('coloane' in result) || JSON.stringify(result.coloane) !== JSON.stringify(['id', 'cantitate_surplus'])) throw new Error('No real columns');
+  if (JSON.stringify(result).includes('private-id') || JSON.stringify(result).includes('42')) throw new Error('Row leaked into schema');
+  await schema.execute?.({ domeniu: 'quality_email_settings' }, { toolCallId: 'blocked', messages: [], context: {} });
+  if (reads !== 1) throw new Error('Unknown table read');
+  const agentSchema = agentTools(c, {}).schema_context;
+  const agentResult = await agentSchema.execute?.({ domeniu: 'productie_restocari' }, { toolCallId: 'agent-schema', messages: [], context: {} });
+  if (JSON.stringify(agentResult) !== JSON.stringify(result)) throw new Error('Agent schema differs from chat and Viziune');
+});
 
 Deno.test("Viziune exposes the same operational and Senior read tools, never writes", () => {
   const c = { cloud: {}, legacy: {}, legacyUser: {} } as Parameters<typeof readTools>[0];

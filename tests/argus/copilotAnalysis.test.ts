@@ -11,6 +11,25 @@ const result = (messages: AnalysisMessage[]) => {
   return JSON.parse(block.content);
 };
 
+test('a mixed question continues from application stock to Senior before answering', async () => {
+  const reads: string[] = [];
+  let steps = 0;
+  const answer = await runCopilotAnalysis([{ role: 'user', content: 'Compară stocul fizic Iceberg cu Senior' }], [
+    query('stoc_si_proiectie_achizitii', async () => { reads.push('application'); return { stoc_fizic_acum: 800 }; }),
+    query('senior_sql', async () => { reads.push('Senior'); return { stoc_contabil: 900 }; }),
+  ], async messages => {
+    if (steps++ === 0) return { content: [{ type: 'tool_use', id: 'a', name: 'stoc_si_proiectie_achizitii', input: { produs: 'Iceberg', depozit: 'materii-prime', zile: 28 } }] };
+    if (steps === 2) {
+      expect(result(messages).stoc_fizic_acum).toBe(800);
+      return { content: [{ type: 'tool_use', id: 'b', name: 'senior_sql', input: { sql: 'SELECT stoc_contabil FROM Stoc' } }] };
+    }
+    expect(result(messages).stoc_contabil).toBe(900);
+    return { content: [{ type: 'text', text: 'Aplicație: 800 kg. Senior: 900 kg. Diferență: 100 kg.' }] };
+  }, compact);
+  expect(reads).toEqual(['application', 'Senior']);
+  expect(answer).toBe('Aplicație: 800 kg. Senior: 900 kg. Diferență: 100 kg.');
+});
+
 test("historical consumption is read even when the screen only contains today's stock", async () => {
   let reads = 0, steps = 0;
   const tools = [query("interogare_date", async input => {
