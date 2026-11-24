@@ -16,7 +16,7 @@ export function TransportCheck({ values, basis, route }: { values: Record<string
           {differs(s.perKg, s.shownPerKg) && <span className="text-crm-warning"> · câmpul are {f(s.shownPerKg, 4)}, scris de mână</span>}</p>
         {s.avgPalletKg != null && s.perKg != null && (
           <p className="text-muted-foreground">
-            Un palet mediu din comenzi are {f(s.kg, 0)} kg ÷ {f(s.pallets, 2)} paleți = {f(s.avgPalletKg, 1)} kg, pentru că se amestecă frunze ({LEAF_PALLET_KG} kg), căpățâni (400 kg) și radicchio (500 kg).
+            Un palet mediu din comenzi are {f(s.kg, 0)} kg ÷ {f(s.pallets, 2)} paleți = {f(s.avgPalletKg, 1)} kg, pentru că se amestecă baby leaf ({LEAF_PALLET_KG} kg), aromate (200 kg), căpățâni (400 kg) și radicchio (500 kg).
             {" "}Deci lei/palet = lei/kg × {f(s.avgPalletKg, 1)} kg, nu × {LEAF_PALLET_KG} kg. Un palet de frunze ar costa {f(s.leafPalletByKg)} lei dacă plătești pe kg, dar {f(s.perPallet)} lei dacă plătești pe palet, fiindcă ocupă tot un loc în camion.
             {" "}Acum se folosește <b>{basis === "pallet" ? "pe palet" : "pe kg"}</b> (alegi la „Aprovizionare în total”).
           </p>
