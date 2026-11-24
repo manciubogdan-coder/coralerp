@@ -31,7 +31,7 @@ import { DepotDetail, PickingDetail } from "@/components/viziune/WarehouseDetail
 import { useWarehousePallets } from "@/components/viziune/useWarehousePallets";
 import { depotDetail, pickingDetail } from "@/lib/viziune/warehouseState";
 import { clockRo, copilotSnapshot, factorySummary, tourStops, type FactoryInput, type TourStop } from "@/lib/viziune/presentation";
-import { LiveBadge, TourOverlay, useTour } from "@/components/viziune/Presentation";
+import { TourOverlay, useTour } from "@/components/viziune/Presentation";
 import { ArgusCopilot } from "@/components/viziune/ArgusCopilot";
 import { Clapperboard } from "lucide-react";
 
@@ -326,7 +326,6 @@ export default function ViziunePage() {
           <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Viziune</div>
           <div className={`font-black leading-tight ${mobile ? "text-base" : "text-xl"}`}>Coral Biogreens · fabrica live</div>
         </div>
-        <LiveBadge updatedAt={data.updatedAt} />
       </div>
       ) : mobile ? (
       <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-col gap-1.5">
@@ -353,7 +352,6 @@ export default function ViziunePage() {
         </div>
         {!walking && !(sel && !editing) && <div className="pointer-events-auto -mx-2 flex snap-x gap-1.5 overflow-x-auto px-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
-        <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
         <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
           <div className={`rounded-md border px-2 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
@@ -367,9 +365,6 @@ export default function ViziunePage() {
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
-        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "birouri" })}>
-          <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
-        </button>
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "livrare" })}>
           <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
         </button>
@@ -398,10 +393,8 @@ export default function ViziunePage() {
             <Sparkles className="h-3.5 w-3.5" />{quality === "inalta" ? "Grafică frumoasă" : "Grafică rapidă"}
           </Button>
         </div>
-        <LiveBadge updatedAt={data.updatedAt} className="pointer-events-auto self-center" />
         {!walking && <>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
-        <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
         <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
           <div className={`rounded-md border px-2 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
@@ -415,9 +408,6 @@ export default function ViziunePage() {
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
-        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "birouri" })}>
-          <Kpi label="Birouri" value={offices.loading ? "…" : `${officeNow} lucrează acum`} sub={offices.error ? "nu s-au putut citi" : `${seniorDocs} documente Senior azi${offices.seniorError ? " · Senior indisponibil" : ""}`} />
-        </button>
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => select({ kind: "livrare" })}>
           <Kpi label="Gata de livrare" value={`${data.ready.length} magazine`} sub={`${fmt(data.ready.reduce((a, r) => a + r.pieces, 0))} buc`} />
         </button>
@@ -472,14 +462,6 @@ export default function ViziunePage() {
           <Button key={z} size="xs" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
         ))}
       </div>}
-
-      {/* legend */}
-      <div className={`absolute bottom-2 right-2 z-10 hidden rounded-md border bg-card/95 px-2 py-1 text-[9px] shadow ${walking || touring || copilotOpen ? "" : "md:block"}`}>
-        <div className="mb-0.5 font-semibold">Lumina de pe linie</div>
-        <div className="flex gap-3"><span>🟢 lucrează</span><span>🟡 așteaptă</span><span>🔵 gata</span><span>⚪ oprită</span><span className="font-bold text-destructive">🔴 ⚠ peste normă</span></div>
-        <div className="mt-1 flex gap-3"><span className="font-semibold text-crm-cool">━ materie primă</span><span className="font-semibold text-crm-green">━ produs finit</span><span className="font-semibold text-crm-warning">━ graniță igienă</span></div>
-        <div className="mt-1 text-muted-foreground">Trage = rotire · rotiță = zoom · clic dreapta = mutare · clic pe linie/zonă = detalii</div>
-      </div>
 
       {/* detail panel */}
       {editing && draft && (
