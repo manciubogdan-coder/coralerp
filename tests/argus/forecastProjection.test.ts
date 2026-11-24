@@ -1,0 +1,22 @@
+import { describe, expect, it } from 'bun:test';
+import { projectionDemand, requiresPurchasingProjection, weekdayAverages, reconcileProjection } from '../../supabase/functions/_shared/forecastProjectionRules';
+import { weekdayAverages as screenAverages, reconcileProjection as screenProjection } from '../../src/lib/forecastReconciliation';
+
+describe('Argus and Achiziții projection parity', () => {
+  it('uses the same functions as the daily projection screen', () => {
+    expect(screenAverages).toBe(weekdayAverages);
+    expect(screenProjection).toBe(reconcileProjection);
+  });
+  it('requires the forecast tool for the reported rucola stock and coverage question', () => {
+    expect(requiresPurchasingProjection('Rucola cât am pe stoc și cât îmi ajunce marfa?')).toBe(true);
+    expect(requiresPurchasingProjection('Rucola cât consum în medie pe zi?')).toBe(true);
+    expect(requiresPurchasingProjection('Unde sunt birourile?')).toBe(false);
+  });
+  it('does not confuse weekday demand with a diluted calendar average', () => {
+    const dates = Array.from({ length: 28 }, (_, i) => { const d = new Date('2026-10-27T12:00:00Z'); d.setUTCDate(d.getUTCDate() + i); return d.toISOString().slice(0,10); });
+    const averages = weekdayAverages({ '2026-10-27': 1000, '2026-11-03': 1000, '2026-11-10': 1000, '2026-11-17': 1000 }, dates);
+    expect(averages[1]).toBe(1000);
+    expect(projectionDemand({ '2026-11-24': 1348.5 }, averages, '2026-11-24', '2026-11-24')).toBe(1348.5);
+    expect(projectionDemand({}, averages, '2026-12-01', '2026-11-24')).toBe(1000);
+  });
+});

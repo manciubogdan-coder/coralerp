@@ -26,6 +26,7 @@ import { arrivalFor, dailyPlan, type DailyPlanStep } from '@/lib/achizitii/truck
 import { loadProductionUsage } from '@/lib/productionUsage';
 import type { ProductionUsage } from '@/lib/forecastReconciliation';
 import ProductionUsageBreakdown from '@/components/production/ProductionUsageBreakdown';
+import { projectionDemand } from '../../../supabase/functions/_shared/forecastProjectionRules';
 
 interface Props {
   inventoryType: "materii-prime" | "ambalaje" | "etichete";
@@ -612,10 +613,7 @@ const ClientOrdersForecast: React.FC<Props> = ({ inventoryType, searchTerm = "",
   // azi (zi în curs) = media istorică a zilei, sau transferurile de azi dacă le-au depășit deja;
   // zilele viitoare = media transferurilor din aceeași zi a săptămânii (ultimele 4 săptămâni).
   const dayDemand = useCallback((row: any, day: string) => {
-    const avg = row.transferAvg[isoDay(new Date(`${day}T12:00:00`))] || 0;
-    if (day < todayKey) return row.actualConsumption[day] || 0;
-    if (day === todayKey) return Math.max(avg, row.actualConsumption[day] || 0);
-    return avg;
+    return projectionDemand(row.actualConsumption, row.transferAvg, day, todayKey);
   }, [todayKey]);
 
   const projection = useMemo(() => {

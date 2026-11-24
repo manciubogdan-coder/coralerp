@@ -2,6 +2,7 @@
 import { jsonSchema, tool, type UIMessage } from "npm:ai@7.0.123";
 import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
 import { priceTools } from "./priceTool.ts";
+import { forecastTools } from "./forecastTool.ts";
 import { memoryTools } from "./memory.ts";
 import { searchConversations, threadOwners } from "./conversationSearch.ts";
 import { messageText } from "./contextRules.ts";
@@ -90,6 +91,7 @@ export function readTools(c: ReturnType<typeof makeClients>, threadId = "", mess
     }),
     ...seniorTools(c.cloud),
     ...priceTools(c),
+    ...forecastTools(c),
     dosar_produs: memoryTools(c, "", "").dosar_produs,
   };
 }

@@ -3,6 +3,7 @@ import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Client
 
 import { describeFilters, validFilters } from "./agentFilters.ts";
 import { priceTools } from "./priceTool.ts";
+import { forecastTools } from "./forecastTool.ts";
 import { loadMemory } from "./memoryStore.ts";
 import { runLive, validLiveSpec } from "./liveReports.ts";
 import { memoryTools } from "./memory.ts";
@@ -15,6 +16,7 @@ const tableList = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).jo
 export function agentTools(c: Clients, querySchema: unknown) {
   return {
     ...priceTools(c),
+    ...forecastTools(c),
     // Agents need the same live Senior access as chat: invoices, purchases, partners, stocks.
     ...seniorTools(c.cloud),
     dosar_produs: memoryTools(c as any, "agent", "").dosar_produs,
@@ -70,6 +72,7 @@ Memoria permanentă Coral este comună cu chatul. Aplică regulile de business c
 ${memory}
 </memorie_permanenta>
 Folosește instrumentele ca să calculezi cifre REALE; nu inventa nimic. Pentru cost/preț de produs finit folosește calculeaza_pret (calcul exact din Senior) și redă cifrele lui neschimbate. Fă cât mai puține interogări, dar suficiente ca să ai cifre reale.
+Pentru stoc, consum mediu și acoperire materii prime/ambalaje/etichete folosește obligatoriu stoc_si_proiectie_achizitii; nu estima din stoc ÷ medie generică. Distinge stocul fizic de începutul zilei; lipsa snapshotului face proiecția neverificabilă.
 Date din aplicație (interogare_date / metrici_perioada):
 ${tableList}
 Senior ERP LIVE (senior_cauta_tabele / senior_descrie_tabel / senior_sql) — sursa pentru facturi, achiziții, vânzări, prețuri, parteneri, articole, stocuri, contabilitate:

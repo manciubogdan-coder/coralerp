@@ -4,7 +4,7 @@ import { readTools } from "../../supabase/functions/argus/readTools.ts";
 Deno.test("Viziune exposes the same operational and Senior read tools, never writes", () => {
   const c = { cloud: {}, legacy: {}, legacyUser: {} } as Parameters<typeof readTools>[0];
   const names = Object.keys(readTools(c));
-  for (const name of ["schema_context", "metrici_perioada", "interogare_date", "senior_cauta_tabele", "senior_descrie_tabel", "senior_sql", "dosar_produs", "calculeaza_pret", "cauta_conversatii", "citeste_istoric"]) {
+  for (const name of ["schema_context", "metrici_perioada", "interogare_date", "senior_cauta_tabele", "senior_descrie_tabel", "senior_sql", "dosar_produs", "calculeaza_pret", "stoc_si_proiectie_achizitii", "cauta_conversatii", "citeste_istoric"]) {
     if (!names.includes(name)) throw new Error(`Missing read tool: ${name}`);
   }
   for (const name of ["propune_actiune", "creeaza_agent", "memoreaza"]) {

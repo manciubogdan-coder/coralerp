@@ -1,3 +1,5 @@
+import { projectionMaterialKey, projectionQuantity, projectionTransferQuantity, projectionConsumptionDestination } from '../../supabase/functions/_shared/forecastProjectionRules';
+export { weekdayAverages, sevenDayBuffer, netPendingDeliveries, reconcileProjection } from '../../supabase/functions/_shared/forecastProjectionRules';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 
 export const businessDay = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -6,12 +8,8 @@ export const dayBounds = (day: string) => ({
   start: fromZonedTime(`${day}T00:00:00`, 'Europe/Bucharest').toISOString(),
   end: fromZonedTime(`${day}T23:59:59.999`, 'Europe/Bucharest').toISOString(),
 });
-export const materialKey = (name: string) => name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-export const materialQuantity = (quantity: unknown, unit?: string) => {
-  const q = Number(quantity) || 0;
-  const u = (unit || '').toLowerCase();
-  return ['g', 'gr', 'grame'].includes(u) ? q / 1000 : ['t', 'tone'].includes(u) ? q * 1000 : q;
-};
+export const materialKey = projectionMaterialKey;
+export const materialQuantity = projectionQuantity;
 export async function readPages(build: () => any): Promise<any[]> {
   const rows: any[] = [];
   for (let offset = 0; ; offset += 1000) {
@@ -23,14 +21,9 @@ export async function readPages(build: () => any): Promise<any[]> {
 }
 
 // Transfer quantity includes transport packaging; only net quantity leaves stock.
-export function transferStockQuantity(item: any, inventoryUnit?: string) {
-  return materialQuantity(item.net_quantity ?? item.quantity, item.unit || inventoryUnit);
-}
-
+export const transferStockQuantity = projectionTransferQuantity;
 export const isProductionDestination = (destination: string | null | undefined) => materialKey(destination || '').includes('produc');
-// Goods sent straight to Picking (sold as-is) are consumed like production transfers.
-export const isConsumptionDestination = (destination: string | null | undefined) =>
-  isProductionDestination(destination) || materialKey(destination || '').includes('picking');
+export const isConsumptionDestination = projectionConsumptionDestination;
 
 // An absent product row is not proof of zero stock or snapshot completeness.
 export function aggregateSnapshots(rows: any[], resolveKey: (row: any) => string | undefined) {
@@ -110,76 +103,6 @@ export function effectiveOrderQuantities<T extends { produs_id?: string | null; 
   }).filter(r => r.quantity > 0);
 }
 
-/** Weekday average over every reference day (days without orders count as zero). */
-export function weekdayAverages(totals: Record<string, number>, days: string[]) {
-  const sums = [0, 0, 0, 0, 0, 0, 0], counts = [0, 0, 0, 0, 0, 0, 0];
-  for (const day of days) {
-    const w = (new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7;
-    counts[w] += 1; sums[w] += totals[day] || 0;
-  }
-  return sums.map((s, i) => counts[i] ? s / counts[i] : 0);
-}
-
-const shiftDay = (day: string, delta: number) => {
-  const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + delta); return d.toISOString().slice(0, 10);
-};
-
-/** Seven completed Bucharest calendar days, using the same actual consumption as the projection. */
-export function sevenDayBuffer(consumption: Record<string, number>, today: string) {
-  const days = Array.from({ length: 7 }, (_, i) => {
-    const day = shiftDay(today, i - 7);
-    return { day, quantity: consumption[day] || 0 };
-  });
-  const total = days.reduce((sum, d) => sum + d.quantity, 0);
-  return { days, total, average: total / 7 };
-}
-/**
- * Supplier deliveries still to come, per delivery day: today and later count exactly as ordered.
- * Each day stands alone — a day with a receipt counts the receipt (see reconcileProjection),
- * a day without one counts its order. Receipts of earlier days never cancel later orders.
- */
-export function netPendingDeliveries(input: {
-  ordered: Record<string, number>; received?: Record<string, number>;
-  commitments?: Record<string, number>; today: string;
-}) {
-  const result: Record<string, number> = {};
-  for (const [day, qty] of Object.entries(input.ordered)) if (day >= input.today) result[day] = qty || 0;
-  return result;
-}
-
-export function reconcileProjection(input: {
-  dates: string[]; today: string; anchor: number | null;
-  snapshots: Record<string, number>; ordered: Record<string, number>;
-  received: Record<string, number>; outbound: Record<string, number>; returned?: Record<string, number>;
-  /** Consumption per day from client orders × recipes (estimated average where no orders exist). */
-  demand: number[];
-  /** Future days (after today) carry a negative balance instead of restarting from zero (packaging/labels requirement view). */
-  allowNegative?: boolean;
-}) {
-  let running: number | null = input.anchor;
-  return input.dates.map((day, i) => {
-    const historical = day < input.today;
-    const observed = input.snapshots[day] ?? null;
-    const carryNegative = !!input.allowNegative && day > input.today;
-    // Anchor once; subsequent days carry the calculated closing, not a different snapshot.
-    // Preserve unknown historical openings; restart from a dated observation if no balance exists.
-    const opening: number | null = i > 0 && running !== null ? (carryNegative ? running : Math.max(running, 0))
-      : historical ? observed
-      : day === input.today ? Math.max(observed ?? 0, 0)
-      : Math.max(running ?? 0, 0);
-    const hasReceipt = Object.prototype.hasOwnProperty.call(input.received, day);
-    const incoming = (hasReceipt ? input.received[day] || 0 : historical ? 0 : input.ordered[day] || 0)
-      + (input.returned?.[day] || 0);
-    const consumption = input.demand[i] || 0;
-    const closing = opening === null ? null : opening + incoming - consumption;
-    const nextDay = new Date(`${day}T12:00:00Z`); nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-    const nextSnapshot = input.snapshots[nextDay.toISOString().slice(0, 10)] ?? null;
-    // Ledger check against real warehouse issues, independent of order-based consumption.
-    const residual = historical ? stockVariance(opening, nextSnapshot, incoming, input.outbound[day] || 0) : null;
-    running = closing;
-    return { opening, closing, observed, incoming, consumption, residual };
-  });
-}
 export interface StockGapDay {
   day: string; opening: number | null; ordered: number; received: number; returned: number;
   outbound: number; planned: number; advances: number; otherDays: number; qualityLoss: number;
