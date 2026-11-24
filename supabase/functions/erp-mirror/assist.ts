@@ -1,17 +1,26 @@
 // Asistentul CEO: streaming NDJSON cu pașii, textul și șablonul final de raport.
-import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible";
+import { createOpenAICompatible } from "npm:@ai-sdk/openai-compatible@3.0.60";
 import { isStepCount, jsonSchema, streamText, tool } from "npm:ai@7.0.123";
-import { SENIOR_GUIDE, seniorLive, seniorTools } from "../_shared/senior.ts";
+import { SENIOR_GUIDE, seniorLive, seniorTools, verifiedSeniorRows } from "../_shared/senior.ts";
 import { fillTemplate, validTemplate, type SqlTemplate } from "../_shared/templates.ts";
 import { createLovableAiGatewayRunIdFetch } from "../_shared/run-id.ts";
-import { makeClients, runQuery, TABLES } from "../_shared/appData.ts";
+import { makeClients, runQuery, boundedQueryResult, TABLES } from "../_shared/appData.ts";
+import { businessSchemaTool } from '../_shared/businessSchema.ts';
+import { forecastTools } from '../_shared/purchasingForecast.ts';
+import { purchasingProjectionStep } from '../_shared/forecastProjectionRules.ts';
 const appTables = Object.entries(TABLES).map(([k, v]) => `- ${k}: ${v.desc}`).join("\n");
+
+export function assistSources(c: ReturnType<typeof makeClients>) {
+  return { schema_context: businessSchemaTool(c), ...forecastTools(c) };
+}
 
 const STEP_LABEL: Record<string, string> = {
   senior_cauta_tabele: "Caut tabelele potrivite în Senior",
   senior_descrie_tabel: "Citesc coloanele tabelului",
   senior_sql: "Rulez o interogare în Senior",
   date_aplicatie: "Citesc datele din aplicație",
+  stoc_si_proiectie_achizitii: 'Citesc proiecția zilnică din Achiziții',
+  schema_context: 'Verific sursa și coloanele',
   raport_final: "Pregătesc tabelul raportului",
 };
 
@@ -42,6 +51,7 @@ export function assistStream(prompt: string, sb: any, signal: AbortSignal, appTo
         let final: { title: string; template: SqlTemplate; rows: any[] } | null = null;
         const tools = {
           ...seniorTools(sb),
+          ...assistSources({ ...makeClients(appToken), cloud: sb }),
           date_aplicatie: tool({
             description: "Citește (doar citire) un tabel din aplicația CoralERP: producție, depozite, recepții, necesar clienți, comenzi furnizori, taskuri. Filtre: operator eq/neq/gt/gte/lt/lte/ilike/in/is_null/not_null.",
             inputSchema: jsonSchema<any>({
@@ -58,7 +68,7 @@ export function assistStream(prompt: string, sb: any, signal: AbortSignal, appTo
             execute: async (q: any) => {
               try {
                 const r = await runQuery(makeClients(appToken), { ordonare: null, descrescator: false, ...q });
-                return { total: r.randuri.length, randuri: r.randuri.slice(0, Math.min(q.limita || 50, 200)) };
+                return { total: r.randuri.length, ...boundedQueryResult(r, q.limita) };
               } catch (e) { return { eroare: (e as Error).message }; }
             },
           }),
@@ -89,8 +99,8 @@ export function assistStream(prompt: string, sb: any, signal: AbortSignal, appTo
               });
               if (!tpl) return { eroare: "Șablon invalid: un singur SELECT, iar fiecare {{parametru}} folosit trebuie declarat în parametri (nume cu litere mici)." };
               try {
-                const rows = await seniorLive(sb, "sql", { sql: fillTemplate(tpl) }, 45000);
-                final = { title: String(a.titlu || prompt).slice(0, 120), template: tpl, rows: Array.isArray(rows) ? rows : [] };
+                const rows = verifiedSeniorRows(await seniorLive(sb, "sql", { sql: fillTemplate(tpl) }, 45000));
+                final = { title: String(a.titlu || prompt).slice(0, 120), template: tpl, rows };
                 return { ok: true, randuri: final.rows.length, primele: final.rows.slice(0, 15) };
               } catch (e) { return { eroare: (e as Error).message }; }
             },
@@ -102,12 +112,13 @@ export function assistStream(prompt: string, sb: any, signal: AbortSignal, appTo
           abortSignal: signal,
           system: `Ești asistentul de date al CEO-ului Coral Biogreens. Azi este ${today}. „Luna trecută” = ${prevMonth}-01 … ${prevMonth}-${lastDay}. „Anul acesta” = ${yy}-01-01 … ${today}. Răspunzi DOAR pe baza datelor citite live: din Senior (senior_*) și din aplicația CoralERP (date_aplicatie) — folosește-le pe amândouă când întrebarea privește producția, stocurile, recepțiile sau necesarul. Nu inventa cifre. raport_final se aplică doar pentru tabele Senior; dacă răspunsul vine doar din aplicație, nu-l apela.\nTabele aplicație:\n${appTables}
 ${SENIOR_GUIDE}
+Pentru TOATE materiile prime, ambalajele și etichetele, stocul fizic, consumul mediu și acoperirea se citesc obligatoriu din stoc_si_proiectie_achizitii, aceeași proiecție ca Achiziții zi pe zi. Distinge fizic de stoc început zi și de stoc contabil Senior; lipsa snapshotului nu înseamnă stoc zero. Pentru produse finite folosește aplicația; pentru cifre contabile folosește Senior. La întrebări mixte continuă citirile în ambele surse. schema_context verifică coloanele aplicației. Nu salva o proiecție Achiziții drept raport SQL Senior.
 FLUX RAPID: scrie direct interogarea cu schema verificată (1–3 interogări senior_sql), apoi apelează raport_final cu interogarea principală ca șablon, apoi scrie răspunsul.
 Răspunsul final: în română, markdown scurt (max 8 rânduri): concluzia și cifrele cheie (totaluri). NU copia tabelul cu toate rândurile — tabelul raportului se afișează separat sub răspuns. Încheie cu o linie „Sursa:” cu tabelele și filtrele.`,
           prompt,
           tools,
           stopWhen: isStepCount(10),
-          prepareStep: ({ stepNumber }: { stepNumber: number }) => (stepNumber >= 8 ? { toolChoice: "none" as const } : undefined),
+          prepareStep: ({ stepNumber }: { stepNumber: number }) => (stepNumber >= 8 ? { toolChoice: "none" as const } : purchasingProjectionStep(prompt, stepNumber)),
         });
         for await (const p of result.fullStream as AsyncIterable<any>) {
           if (p.type === "tool-call") {

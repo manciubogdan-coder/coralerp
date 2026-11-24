@@ -19,6 +19,12 @@ export function lastClosedMonth(today: string) {
   return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 };
 }
 
+/** Screen, chat and live price reports share the closed-month fallback; explicit choices win. */
+export function costMonth(today: string, year?: number | null, month?: number | null) {
+  const fallback = lastClosedMonth(today);
+  return { year: year ?? fallback.year, month: month ?? fallback.month };
+}
+
 /** Selling price window: the chosen calendar month only (current month: 1st up to today; a future month falls back to the current one). */
 export function saleWindow(year: number, month: number, today: string) {
   const requested = `${year}-${String(month).padStart(2, "0")}`;

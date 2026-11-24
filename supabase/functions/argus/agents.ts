@@ -1,5 +1,5 @@
 import { generateText, isStepCount, jsonSchema, tool } from "npm:ai@7.0.123";
-import { addDays, bucharestDay, overviewWithTrend, runQuery, TABLES, type Clients, type QuerySpec } from "./data.ts";
+import { addDays, bucharestDay, overviewWithTrend, runQuery, boundedQueryResult, TABLES, type Clients, type QuerySpec } from "./data.ts";
 
 import { describeFilters, validFilters } from "./agentFilters.ts";
 import { priceTools } from "./priceTool.ts";
@@ -46,8 +46,7 @@ export function agentTools(c: Clients, querySchema: unknown) {
       execute: async (spec) => {
         try {
           const r = await runQuery(c, spec);
-          const lim = Math.min(Math.max(1, spec.limita || 50), 150);
-          return { total_randuri_sursa: r.total_randuri_sursa, randuri: r.randuri.slice(0, lim) };
+          return boundedQueryResult(r, spec.limita, 150);
         } catch (e) { return { eroare: String((e as Error).message) }; }
       },
     }),

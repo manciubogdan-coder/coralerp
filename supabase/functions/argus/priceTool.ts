@@ -2,8 +2,9 @@
 import { jsonSchema, tool } from "npm:ai@7.0.123";
 import { defaultRates, findArticles, findPartners, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { configuredSheet, validPriceConfig } from "../_shared/priceConfig.ts";
-import { prefilledConfig } from "../_shared/priceDefaults.ts";
+import { prefilledConfig, costMonth } from "../_shared/priceDefaults.ts";
 import { priceRules } from "../_shared/priceRules.ts";
+import { bucharestDay } from './data.ts';
 
 type C = { cloud: any; legacy: any; legacyUser?: any };
 
@@ -40,8 +41,8 @@ export function priceTools(c: C) {
             }
             partner = ps.find((p: any) => String(p.name).trim().toLowerCase() === client.trim().toLowerCase()) ?? ps[0];
           }
-          const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Bucharest" }));
-          const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: art.id, partnerId: partner?.id ?? null, storeId: partner?.id ?? null, year: an ?? now.getFullYear(), month: luna ?? now.getMonth() + 1, rawPriceMode: config.rawPriceMode });
+          const period = costMonth(bucharestDay(), an ?? config.year, luna ?? config.month);
+          const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: art.id, partnerId: partner?.id ?? null, storeId: partner?.id ?? null, ...period, rawPriceMode: config.rawPriceMode });
           const margin = marja ?? config.rates?.marginPct ?? priceRules().marginPct;
           const { sheet } = configuredSheet(d, defaultRates(d, margin), prefilledConfig(d, { ...config, rates: { ...config.rates, marginPct: margin } }));
           const lastSale = [...d.salesHistory].reverse().find((h) => h.price != null) ?? null;
@@ -53,7 +54,8 @@ export function priceTools(c: C) {
             marja_bruta_procent: margin, marja_bruta_RON_bax: sheet.grossMargin, pret_minim_vanzare_fara_taxe: sheet.minPrice,
             profitabilitate_tinta_procent: sheet.profitPct, profit_tinta_RON_bax: sheet.profit, pret_minim_plus_profit_fara_taxe: sheet.delivered,
             taxe_retea_procent: sheet.feePct, taxe_retea_RON_bax: sheet.clientFees, pret_propus_cu_taxe_RON: sheet.clientPrice,
-            formula: "marjă brută = (cost producție + distribuție) × marjă%; preț minim = cost producție + distribuție + marjă; profit = preț minim × profitabilitate%; preț propus = (preț minim + profit) ÷ (1 − taxe rețea%)",
+            perioada_costurilor: period,
+            formula: "preț fără taxe = (cost producție + distribuție) ÷ (1 − marjă% − profit%); marjă = preț fără taxe × marjă%; preț minim = cost + marjă; profit = preț fără taxe × profit%; preț propus = (preț fără taxe + taxă fixă configurată) ÷ (1 − taxe rețea%)",
             pret_livrare_client_EUR: sheet.clientPriceEur, curs_EUR_folosit: sheet.eurEffective, per_bucata: sheet.perPiece,
             preturi_lipsa: sheet.missingPrices,
             fisa_completa: sheet.complete, parametri_lipsa: sheet.missingInputs,

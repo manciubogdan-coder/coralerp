@@ -1,12 +1,13 @@
 // Shared read-only capabilities for the main Argus chat and Viziune copilot.
 import { jsonSchema, tool, type UIMessage } from "npm:ai@7.0.123";
-import { SENIOR_GUIDE, seniorTools } from "../_shared/senior.ts";
+import { seniorTools } from "../_shared/senior.ts";
 import { priceTools } from "./priceTool.ts";
 import { forecastTools } from "./forecastTool.ts";
 import { memoryTools } from "./memory.ts";
 import { searchConversations, threadOwners } from "./conversationSearch.ts";
 import { messageText } from "./contextRules.ts";
-import { makeClients, overviewWithTrend, runQuery, TABLES, type QuerySpec } from "./data.ts";
+import { makeClients, overviewWithTrend, runQuery, boundedQueryResult, TABLES, type QuerySpec } from "./data.ts";
+import { businessSchemaTool } from '../_shared/businessSchema.ts';
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const querySchema = {
@@ -39,21 +40,7 @@ export const querySchema = {
 
 export function readTools(c: ReturnType<typeof makeClients>, threadId = "", messages?: UIMessage[]) {
   return {
-    schema_context: tool({
-      description: "Schema și reguli la cerere. Domeniu 'senior' sau nume de tabel din aplicație.",
-      inputSchema: jsonSchema<{ domeniu: string }>({ type: 'object', additionalProperties: false, required: ['domeniu'], properties: { domeniu: { type: 'string' } } }),
-      execute: async ({ domeniu }) => {
-        if (domeniu === 'senior') return { ghid: SENIOR_GUIDE };
-        const table = TABLES[domeniu];
-        if (!table) return { eroare: 'Tabel necunoscut' };
-        // Inspect only keys, never return a business row as schema or expose non-allowlisted tables.
-        try {
-          const { data, error } = await c[table.db].from(domeniu).select('*').range(0, 0);
-          if (error) return { ...table, eroare: `Schema nu poate fi verificată: ${error.message}` };
-          return { ...table, coloane: Object.keys(data?.[0] ?? {}), avertisment: data?.length ? null : 'Tabel gol; coloanele nu pot fi deduse din rânduri.' };
-        } catch (e) { return { ...table, eroare: `Schema nu poate fi verificată: ${(e as Error).message}` }; }
-      },
-    }),
+    schema_context: businessSchemaTool(c),
     citeste_istoric: tool({
       description: "Recuperează exact mesaje dintr-o conversație Argus (a ta sau a altui utilizator al firmei), pe poziții 1-based (max 20). Id-ul vine din cauta_conversatii.",
       inputSchema: jsonSchema<{ conversatie: string; de_la: number }>({ type: 'object', additionalProperties: false, required: ['conversatie','de_la'], properties: { conversatie: { type: 'string' }, de_la: { type: 'integer', minimum: 1 } } }),
@@ -94,8 +81,7 @@ export function readTools(c: ReturnType<typeof makeClients>, threadId = "", mess
       execute: async (spec) => {
         try {
           const r = await runQuery(c, spec);
-          const lim = Math.min(Math.max(1, spec.limita || 50), 200);
-          return { total_randuri_sursa: r.total_randuri_sursa, randuri_returnate: Math.min(lim, r.randuri.length), total_grupuri_sau_randuri: r.randuri.length, randuri: r.randuri.slice(0, lim) };
+          return boundedQueryResult(r, spec.limita);
         } catch (e) { return { eroare: String((e as Error).message) }; }
       },
     }),

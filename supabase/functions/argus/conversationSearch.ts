@@ -9,9 +9,16 @@ export async function threadOwners(c: { cloud: any }, ids: string[]): Promise<Ma
   const out = new Map<string, string>();
   const uniq = [...new Set(ids.filter(Boolean))];
   if (!uniq.length) return out;
-  const { data } = await c.cloud.from("app_activity_pings").select("user_id,display_name,email,occurred_at")
-    .in("user_id", uniq).order("occurred_at", { ascending: false }).limit(2000);
-  for (const r of data ?? []) if (!out.has(r.user_id)) out.set(r.user_id, r.display_name || r.email || r.user_id);
+  for (let i = 0; i < uniq.length; i += 50) {
+    const batch = uniq.slice(i, i + 50);
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await c.cloud.from('app_activity_pings').select('user_id,display_name,email,occurred_at')
+        .in('user_id', batch).order('occurred_at', { ascending: false }).order('id').range(from, from + 499);
+      if (error) throw new Error(`Utilizatorii conversațiilor nu au putut fi citiți: ${error.message}`);
+      for (const r of data ?? []) if (!out.has(r.user_id)) out.set(r.user_id, r.display_name || r.email || r.user_id);
+      if (!data || data.length < 500 || batch.every(id => out.has(id))) break;
+    }
+  }
   return out;
 }
 
@@ -37,14 +44,20 @@ export async function searchConversations(c: { cloud: any }, cuvinte: string, ut
   const pool = threads.filter(t => !who || normalize(owners.get(t.user_id) ?? "").includes(who));
   const results: any[] = [];
   // Scan the most recent conversations' content; titles alone are often "Conversație nouă".
-  for (const t of pool.slice(0, 80)) {
+  for (const t of pool) {
     if (results.length >= 15) break;
     const head = { id: t.id, titlu: t.title, utilizator: owners.get(t.user_id) ?? t.user_id, actualizat: t.updated_at };
     if (!cuvinte.trim()) { results.push(head); continue; }
     if (matchesAll(t.title, cuvinte)) { results.push({ ...head, potrivire: "titlu" }); continue; }
-    const { data, error } = await c.cloud.from("argus_messages").select("message").eq("thread_id", t.id).order("created_at").order("id").limit(400);
-    if (error) throw new Error(`Mesajele nu au putut fi citite: ${error.message}`);
-    const msgs: { i: number; text: string }[] = (data ?? []).map((r: any, i: number) => ({ i: i + 1, text: messageText(r.message) }));
+    const rows: any[] = [];
+    for (let from = 0; ; from += 500) {
+      const { data, error } = await c.cloud.from('argus_messages').select('message').eq('thread_id', t.id)
+        .order('created_at').order('id').range(from, from + 499);
+      if (error) throw new Error(`Mesajele nu au putut fi citite: ${error.message}`);
+      rows.push(...(data ?? []));
+      if (!data || data.length < 500) break;
+    }
+    const msgs: { i: number; text: string }[] = rows.map((r: any, i: number) => ({ i: i + 1, text: messageText(r.message) }));
     const all = msgs.map(m => m.text).join("\n");
     if (!matchesAll(all, cuvinte)) continue;
     const words = normalize(cuvinte).split(/\s+/).filter(w => w.length > 1);

@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 import { projectionDemand, requiresPurchasingProjection, purchasingProjectionStep, weekdayAverages, reconcileProjection } from '../../supabase/functions/_shared/forecastProjectionRules';
 import { weekdayAverages as screenAverages, reconcileProjection as screenProjection } from '../../src/lib/forecastReconciliation';
+import { costMonth } from '../../supabase/functions/_shared/priceDefaults';
 
 describe('Argus and Achiziții projection parity', () => {
+  it('chat and refreshed price reports default to the last closed month, keeping explicit choices', () => {
+    expect(costMonth('2026-11-24')).toEqual({year:2026,month:10});
+    expect(costMonth('2027-01-05')).toEqual({year:2026,month:12});
+    expect(costMonth('2026-11-24',2026,11)).toEqual({year:2026,month:11});
+  });
   for (const question of ['Iceberg cât am pe stoc?', 'Spanac cât îmi ajunge marfa?', 'Folie ambalaje consum mediu', 'Etichete cât mă ține stocul?']) {
     it(`uses the purchasing projection for ${question}`, () => {
       expect(purchasingProjectionStep(question, 0)?.toolChoice.toolName).toBe('stoc_si_proiectie_achizitii');

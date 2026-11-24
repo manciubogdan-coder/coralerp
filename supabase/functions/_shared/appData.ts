@@ -104,13 +104,13 @@ export async function fetchAll(
   cap = 30000,
 ): Promise<any[]> {
   const out: any[] = [];
-  for (let off = 0; off < cap; off += 1000) {
+  for (let off = 0; ; off += 1000) {
     const { data, error } = await apply(client.from(table).select(select)).range(off, off + 999);
     if (error) throw new Error(`${table}: ${error.message}`);
+    if (out.length + (data?.length ?? 0) > cap) throw new Error(`${table}: citirea depășește limita de siguranță (${cap} rânduri). Restrânge perioada/filtrele; nu pot calcula un total complet din date parțiale.`);
     out.push(...(data ?? []));
-    if (!data || data.length < 1000) break;
+    if (!data || data.length < 1000) return out;
   }
-  return out;
 }
 
 async function inBatches(client: SupabaseClient, table: string, select: string, col: string, ids: string[]) {
@@ -468,6 +468,16 @@ export type QuerySpec = {
   limita: number;
 };
 const IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/** Output limits are presentation limits, never proof that the returned subset is the whole result. */
+export function boundedQueryResult(result: { total_randuri_sursa: number; randuri: any[] }, requested: number, maximum = 200) {
+  const limit = Math.min(Math.max(1, requested || 50), maximum);
+  const complete = result.randuri.length <= limit;
+  return { total_randuri_sursa: result.total_randuri_sursa, total_grupuri_sau_randuri: result.randuri.length,
+    randuri_returnate: Math.min(limit, result.randuri.length), complet: complete,
+    avertisment: complete ? null : 'Rezultat afișat parțial. Nu însuma rândurile afișate ca total general; agregă în sursă sau restrânge filtrele.',
+    randuri: result.randuri.slice(0, limit) };
+}
 
 export async function runQuery(c: Clients, spec: QuerySpec, cap = 20000) {
   const t = TABLES[spec.tabel];

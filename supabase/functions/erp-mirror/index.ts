@@ -1,7 +1,7 @@
 // Primește datele oglindite din Senior ERP (scriptul senior-erp-mirror) și le scrie
 // în schema privată erp_mirror din Cloud. Autentificare: header X-Bridge-Token.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { seniorLive, seniorPnl } from "../_shared/senior.ts";
+import { seniorLive, seniorPnl, verifiedSeniorRows } from "../_shared/senior.ts";
 import { commercialSql, commercialSummary } from "../_shared/commercial.ts";
 import { fillTemplate, validTemplate } from "../_shared/templates.ts";
 import { assistStream } from "./assist.ts";
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
           try { sql = commercialSql(body.start, body.end); }
           catch { return json({ error: "Perioadă invalidă." }, 400); }
           try {
-            const rows = await seniorLive(sb, "sql", { sql }, 45000);
+            const rows = verifiedSeniorRows(await seniorLive(sb, "sql", { sql }, 45000));
             return json(commercialSummary(rows, body.start, body.end));
           } catch (e) { throw new LiveError((e as Error).message); }
         }
@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
           if (body.config?.kind === "sql") {
             const tpl = validTemplate(body.config);
             if (!tpl) return json({ error: "Șablon de raport invalid." }, 400);
-            try { rows = await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000); }
+            try { rows = verifiedSeniorRows(await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000)); }
             catch (e) { throw new LiveError((e as Error).message); }
           } else {
             const cfg = validConfig(body.config);
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
         case "template_run": {
           const tpl = validTemplate(body.config);
           if (!tpl) return json({ error: "Șablon de raport invalid." }, 400);
-          try { return json({ rows: await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000) }); }
+          try { return json({ rows: verifiedSeniorRows(await seniorLive(sb, "sql", { sql: fillTemplate(tpl, body.values ?? {}) }, 45000)) }); }
           catch (e) { throw new LiveError((e as Error).message); }
         }
         case "assist":

@@ -5,6 +5,13 @@ type Rpc = { rpc: (fn: string, args?: Record<string, unknown>) => any };
 
 export class SeniorLiveError extends Error {}
 
+/** Generic reports cannot prove completeness when the bridge's 500-row ceiling is reached. */
+export function verifiedSeniorRows(value: unknown): any[] {
+  if (!Array.isArray(value)) throw new SeniorLiveError('Senior nu a returnat o listă verificabilă de rânduri.');
+  if (value.length >= 500) throw new SeniorLiveError('Rezultatul Senior atinge limita de 500 rânduri și poate fi incomplet. Agregă în SQL sau restrânge filtrele; pentru liste complete folosește pagini ordonate, fără a calcula totaluri din această porțiune.');
+  return value;
+}
+
 export async function seniorLive(sb: Rpc, kind: string, payload: unknown, waitMs = 30000) {
   const call = async (fn: string, args: Record<string, unknown>) => {
     const { data, error } = await sb.rpc(fn, args);
@@ -132,9 +139,10 @@ export function seniorTools(sb: Rpc, onRows?: (rows: any[]) => void) {
       inputSchema: jsonSchema<{ sql: string }>({ type: "object", additionalProperties: false, required: ["sql"], properties: { sql: { type: "string" } } }),
       execute: async ({ sql }) => {
         try {
-          const rows = await seniorLive(sb, "sql", { sql: String(sql).slice(0, 8000) }, 40000);
+          if (String(sql).length > 8000) throw new SeniorLiveError('Interogarea depășește 8000 de caractere; simplifică SQL-ul, fără a-l trunchia.');
+          const rows = verifiedSeniorRows(await seniorLive(sb, "sql", { sql: String(sql) }, 40000));
           if (Array.isArray(rows) && rows.length) onRows?.(rows);
-          return { randuri: Array.isArray(rows) ? rows.length : 0, date: Array.isArray(rows) ? rows.slice(0, 200) : rows };
+          return { randuri: rows.length, date: rows, complet: true };
         } catch (e) { return { eroare: (e as Error).message }; }
       },
     }),

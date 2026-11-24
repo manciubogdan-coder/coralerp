@@ -1,0 +1,3 @@
+- CEO assistant uses the shared Argus warehouse projection/schema tools and first-step source choice; Senior-only templates stay separate. Why: warehouse coverage must match Achiziții, not ERP accounting stock.
+- Generic SQL reports use `verifiedSeniorRows` before returning or saving results; reject bridge-ceiling results without overwriting prior results. Why: the reader's cap must not silently change totals.
+- Pin the existing OpenAI-compatible adapter to the provider version used by the project's AI SDK; preserve the model and NDJSON protocol. Why: floating adapter versions can break the stream's type contract.

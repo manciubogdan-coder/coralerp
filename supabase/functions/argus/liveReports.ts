@@ -3,11 +3,11 @@
 // - "price": a Calculator preț sheet (product/client/margin) recomputed by code from live Senior data.
 import { generateText } from "npm:ai@7.0.123";
 import { fillTemplate, validTemplate, type SqlTemplate } from "../_shared/templates.ts";
-import { seniorLive } from "../_shared/senior.ts";
+import { seniorLive, verifiedSeniorRows } from "../_shared/senior.ts";
 import { defaultRates, priceCalcData } from "../_shared/priceCalcSenior.ts";
 import { templateValues } from "./liveFilters.ts";
 import { configuredSheet, validPriceConfig, type PriceConfig } from "../_shared/priceConfig.ts";
-import { prefilledConfig } from "../_shared/priceDefaults.ts";
+import { prefilledConfig, costMonth } from "../_shared/priceDefaults.ts";
 import { validRouteOverrides } from "../_shared/priceSourceRules.ts";
 export { filtersForTemplate } from "./liveFilters.ts";
 
@@ -42,23 +42,23 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
   if (spec.kind === "sql") {
     const vals = templateValues(spec.template, values, today);
     const rows = await seniorLive(c.cloud, "sql", { sql: fillTemplate(spec.template, vals) }, 45000);
-    const list = Array.isArray(rows) ? rows : [];
+    const list = verifiedSeniorRows(rows);
     const headers = list.length ? Object.keys(list[0]) : [];
     return {
       widget_type: "table", title,
       summary: `${list.length} rânduri live din Senior${vals.de_la ? ` · ${vals.de_la} – ${vals.pana_la}` : ""} · fără credite AI`,
-      table_data: { headers, rows: list.slice(0, 300).map((r: any) => headers.map((h) => cell(r[h]))) },
+      table_data: { headers, rows: list.map((r: any) => headers.map((h) => cell(r[h]))) },
       filtre: vals,
     };
   }
-  const [y, m] = today.split("-").map(Number);
   let config = spec.config ?? {};
   if (values.price_config != null) {
     const parsed = validPriceConfig(JSON.parse(String(values.price_config)));
     if (!parsed) throw new Error("Parametri ai fișei invalizi.");
     config = parsed;
   }
-  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, storeId: spec.scope === "central" ? spec.storeId ?? null : spec.partnerId, year: config.year ?? spec.year ?? y, month: config.month ?? spec.month ?? m, rawPriceMode: config.rawPriceMode, routeOverrides: spec.routeOverrides });
+  const period = costMonth(today, config.year ?? spec.year, config.month ?? spec.month);
+  const d = await priceCalcData(c.cloud, c.legacyUser ?? c.legacy, { articolId: spec.articolId, partnerId: spec.partnerId, storeId: spec.scope === "central" ? spec.storeId ?? null : spec.partnerId, ...period, rawPriceMode: config.rawPriceMode, routeOverrides: spec.routeOverrides });
   // Saved margin stays the sheet's margin unless the config carries an explicit one.
   const { sheet: s } = configuredSheet(d, defaultRates(d, spec.marginPct), prefilledConfig(d, { ...config, rates: { marginPct: spec.marginPct, ...config.rates } }));
   const r2 = (n: number | null | undefined) => (n == null ? "—" : (Math.round(n * 100) / 100).toFixed(2));
@@ -66,7 +66,7 @@ export async function runLive(c: { cloud: any; legacy: any; legacyUser?: any }, 
     ...s.lines.map((l) => [l.label, l.detail, r2(l.value)]),
     ["Cost producție", "", r2(s.productionCost)],
     ["Cost distribuție", "", r2(s.logistics)],
-    [`Marjă brută ${config.rates?.marginPct ?? spec.marginPct}%`, "din cost producție + distribuție", r2(s.grossMargin)],
+    [`Marjă brută ${config.rates?.marginPct ?? spec.marginPct}%`, "din prețul fără taxe", r2(s.grossMargin)],
     ["Preț minim vânzare (break-even)", "fără taxe", r2(s.minPrice)],
     [`Profitabilitate țintă ${s.profitPct}%`, "din prețul de vânzare", r2(s.profit)],
     [`Taxe rețea ${s.feePct}%`, "din prețul propus", r2(s.clientFees)],
