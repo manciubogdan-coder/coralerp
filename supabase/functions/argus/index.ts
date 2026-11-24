@@ -659,7 +659,8 @@ Deno.serve(async (req) => {
         let question = String(body?.question ?? '');
         if (!question.trim() && typeof body?.audio === 'string') {
           const bytes = decodeBase64(body.audio);
-          if (!bytes.length || bytes.length > COPILOT_LIMITS.audioBytes) return json({ error: 'Înregistrarea e prea lungă sau goală.' }, 400);
+          if (!bytes.length) return speechRetryResponse(corsHeaders);
+          if (bytes.length > COPILOT_LIMITS.audioBytes) return json({ error: 'Înregistrarea e prea lungă.' }, 400);
           const type = /^audio\/[a-z0-9.+-]+/i.exec(String(body?.type ?? ''))?.[0] ?? 'audio/webm';
           try {
             const t = await transcribeAudio({ model: 'openai/gpt-transcribe', file: new Blob([bytes], { type }), language: 'ro' });
