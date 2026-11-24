@@ -34,9 +34,9 @@ const Summary: React.FC<{ t: Totals }> = ({ t }) => (
   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
     {[
       ['Valoare facturată', eur(t.paid), ''],
-      ['1. Abatere de la lista furnizorului', null, 'facturat față de prețul din lista lui (+ = ne-a facturat mai scump)', t.priceDiff],
+      ['1. Facturat PESTE lista furnizorului', null, `${t.overLines} rânduri · separat, ${t.underLines} rânduri facturate SUB listă: ${eur(t.under)}`, t.over],
       ['2. Rânduri cumpărate NU de la cel mai ieftin', String(t.notCheapest), `din ${t.lines} rânduri de factură`],
-      ['3. Cât economiseam la cel mai mic preț', null, `ar fi costat ${eur(t.atBest)}`, t.totalDiff],
+      ['3. Cât economiseam la cel mai mic preț', null, 'doar rânduri plătite peste cel mai mic preț din liste', t.savings],
       ['4. Pierdut că n-am luat de la cel mai ieftin', null, 'diferența de listă: furnizorul ales vs cel mai ieftin', t.choiceDiff],
     ].map(([title, val, hint, diff]) => (
       <Card key={String(title)}><CardContent className="p-3">
@@ -63,7 +63,7 @@ const LinesTable: React.FC<{ lines: AuditLine[] }> = ({ lines }) => (
       <TableCell><Badge variant={STATUS[l.status].v}>{STATUS[l.status].label}</Badge>{l.agreed != null && l.status !== 'ok' && <div className="text-[10px]">{signed(l.priceDiff)}</div>}</TableCell>
       <TableCell className="text-right tabular-nums text-xs">{pr(l.best)} <span className="text-muted-foreground">{l.bestSupplier}</span></TableCell>
       <TableCell>{l.isCheapest == null ? <span className="text-muted-foreground">—</span> : l.isCheapest ? <Badge variant="outline">Da</Badge> : <Badge variant="destructive">Nu</Badge>}</TableCell>
-      <TableCell className="text-right">{signed(l.best == null ? null : l.totalDiff)}</TableCell>
+      <TableCell className="text-right">{signed(l.best == null || l.agreed == null ? null : l.savings)}</TableCell>
       <TableCell className="text-right">{signed(l.agreed == null || l.best == null ? null : l.choiceDiff)}</TableCell>
     </TableRow>)}
   </TableBody></Table>
@@ -98,7 +98,7 @@ const SupplierPriceAudit: React.FC = () => {
   };
 
   const lines = useMemo(() => (raw ?? []).map((l) => auditLine(l, auditList)), [raw, auditList]);
-  const shown = onlyIssues ? lines.filter((l) => l.status === 'peste' || l.totalDiff > 0.005) : lines;
+  const shown = onlyIssues ? lines.filter((l) => l.status === 'peste' || l.savings > 0.005) : lines;
   const t = useMemo(() => totals(lines), [lines]);
   const byProduct = useMemo(() => groupBy(shown, (l) => l.art), [shown]);
   const bySupplier = useMemo(() => groupBy(shown, (l) => l.supplier ?? l.sup), [shown]);
@@ -107,7 +107,7 @@ const SupplierPriceAudit: React.FC = () => {
   const exportXlsx = () => {
     const rows = lines.map((l) => ({ Data: l.day, Document: `${l.tip} ${l.doc}`, 'Furnizor Senior': l.sup, Furnizor: l.supplier ?? '', Produs: l.art, UM: l.um, Cantitate: l.q,
       'Preț facturat EUR': l.peur ?? 0, 'Preț convenit EUR': l.agreed ?? '', 'Cel mai ieftin EUR': l.best ?? '', 'Furnizor cel mai ieftin': l.bestSupplier ?? '',
-      'Valabil de la': l.validFrom ?? '', 'Valabil până la': l.validTo ?? '', 'Valoare facturată EUR': l.paid, 'Facturat peste listă EUR': l.agreed == null ? '' : l.priceDiff, 'Furnizor mai scump EUR': l.agreed == null || l.best == null ? '' : l.choiceDiff, 'Diferență totală EUR': l.best == null ? '' : l.totalDiff, Stare: STATUS[l.status].label }));
+      'Valabil de la': l.validFrom ?? '', 'Valabil până la': l.validTo ?? '', 'Valoare facturată EUR': l.paid, 'Peste/sub listă EUR': l.agreed == null ? '' : l.priceDiff, 'Era cel mai ieftin': l.isCheapest == null ? '' : l.isCheapest ? 'Da' : 'Nu', 'Economie posibilă EUR': l.agreed == null || l.best == null ? '' : l.savings, 'Pierdut din alegere EUR': l.agreed == null || l.best == null ? '' : l.choiceDiff, Stare: STATUS[l.status].label }));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Facturi');
     XLSX.writeFile(wb, `Control_preturi_furnizori_${start}_${end}.xlsx`);
   };
@@ -133,13 +133,13 @@ const SupplierPriceAudit: React.FC = () => {
 
   const Grouped: React.FC<{ groups: { key: string; lines: AuditLine[]; t: Totals }[]; prefix: string; label: string }> = ({ groups, prefix, label }) => (
     <Table wrapperClassName="max-h-[60vh] overflow-auto"><TableHeader><TableRow>
-      {[label, 'Cantitate', 'Valoare facturată (€)', '1. Abatere de la listă (€)', '2. Rânduri nu de la cel mai ieftin', '3. Economie posibilă (€)', '4. Pierdut din alegere (€)'].map((name) => <AuditColumnHead key={name} label={name} right={name !== label} />)}
+      {[label, 'Cantitate', 'Valoare facturată (€)', '1. Peste/sub listă (€)', '2. Rânduri nu de la cel mai ieftin', '3. Economie posibilă (€)', '4. Pierdut din alegere (€)'].map((name) => <AuditColumnHead key={name} label={name} right={name !== label} />)}
     </TableRow></TableHeader>
       <TableBody>{groups.map((g) => { const k = prefix + g.key; const isOpen = open.has(k); return <React.Fragment key={k}>
         <TableRow className="cursor-pointer" onClick={() => toggle(k)}>
           <TableCell className="font-medium">{isOpen ? <ChevronDown className="inline h-4 w-4" /> : <ChevronRight className="inline h-4 w-4" />} {g.key}</TableCell>
           <TableCell className="text-right tabular-nums">{qf(g.t.qty)}</TableCell><TableCell className="text-right tabular-nums">{eur(g.t.paid)}</TableCell>
-          <TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines ? null : g.t.priceDiff)}</TableCell><TableCell className="text-right tabular-nums">{g.t.notCheapest || '—'}</TableCell><TableCell className="text-right">{signed(g.t.withoutBest === g.t.lines ? null : g.t.totalDiff)}</TableCell><TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines || g.t.withoutBest === g.t.lines ? null : g.t.choiceDiff)}</TableCell>
+          <TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines ? null : g.t.priceDiff)}</TableCell><TableCell className="text-right tabular-nums">{g.t.notCheapest || '—'}</TableCell><TableCell className="text-right">{signed(g.t.withoutBest === g.t.lines || g.t.withoutAgreed === g.t.lines ? null : g.t.savings)}</TableCell><TableCell className="text-right">{signed(g.t.withoutAgreed === g.t.lines || g.t.withoutBest === g.t.lines ? null : g.t.choiceDiff)}</TableCell>
         </TableRow>
         {isOpen && <TableRow><TableCell colSpan={7} className="bg-muted/30 p-2">
           {prefix === 'p:' && <p className="text-xs mb-2">La cele mai mici prețuri valabile în fiecare zi: <b>{eur(g.t.atBest)}</b>, comparativ cu {eur(g.t.paid)} facturat.{g.t.withoutBest > 0 && ` Atenție: ${g.t.withoutBest} rânduri fără comparație.`} Furnizorul recomandat poate fi diferit de la o zi la alta; îl vezi pe fiecare factură.</p>}
