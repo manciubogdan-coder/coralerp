@@ -55,7 +55,7 @@ export function auditLine(l: InvoiceLine, list: PriceList): AuditLine {
     ...l, supplier, category: item?.category ?? '', agreed, best: b?.price ?? null, bestSupplier: b?.supplier ?? null,
     validFrom: period?.validFrom ?? null, validTo: period?.validTo ?? null,
     paid: q * peur,
-    priceDiff: agreed != null ? q * (peur - agreed) : 0,
+    priceDiff: agreed != null && q >= 0 ? q * (peur - agreed) : 0,
     choiceDiff: b && agreed != null ? q * Math.max(0, Math.min(peur, agreed) - b.price) : 0,
     totalDiff: b ? q * (peur - b.price) : 0,
     savings: b && agreed != null ? q * Math.max(0, peur - b.price) : 0,

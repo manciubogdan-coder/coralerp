@@ -84,7 +84,7 @@ const LinesTable: React.FC<{ lines: AuditLine[] }> = ({ lines }) => (
       <TableCell className="text-right tabular-nums">{pr(l.peur)}{l.cur !== 'EUR' && <span className="text-[10px] text-muted-foreground"> ({pr(l.pron)} lei)</span>}</TableCell>
       <TableCell className="text-right tabular-nums">{pr(l.agreed)}</TableCell>
       <TableCell className="text-xs whitespace-nowrap">{l.validFrom ? `${l.validFrom.split('-').reverse().join('.')} – ${l.validTo?.split('-').reverse().join('.')}` : l.agreed != null ? 'Fără date (lista inițială)' : 'Nicio listă valabilă'}</TableCell>
-      <TableCell><Badge variant={STATUS[l.status].v}>{STATUS[l.status].label}</Badge>{l.agreed != null && l.status !== 'ok' && <div className="text-[10px]">{signed(l.priceDiff)}</div>}</TableCell>
+      <TableCell><Badge variant={STATUS[l.status].v}>{STATUS[l.status].label}</Badge>{l.agreed != null && l.status !== 'ok' && l.status !== 'credit' && <div className="text-[10px]">{signed(l.priceDiff)}</div>}</TableCell>
       <TableCell className="text-right tabular-nums text-xs">{pr(l.best)} <span className="text-muted-foreground">{l.bestSupplier}</span></TableCell>
       <TableCell>{l.isCheapest == null ? <span className="text-muted-foreground">—</span> : l.isCheapest ? <Badge variant="outline">Da</Badge> : <Badge variant="destructive">Nu</Badge>}</TableCell>
       <TableCell className="text-right">{signed(l.best == null || l.agreed == null ? null : l.savings)}</TableCell>
@@ -131,7 +131,7 @@ const SupplierPriceAudit: React.FC = () => {
   const exportXlsx = () => {
     const rows = lines.map((l) => ({ Data: l.day, Document: `${l.tip} ${l.doc}`, 'Furnizor Senior': l.sup, Furnizor: l.supplier ?? '', Produs: l.art, UM: l.um, Cantitate: l.q,
       'Preț facturat EUR': l.peur ?? 0, 'Preț convenit EUR': l.agreed ?? '', 'Cel mai ieftin EUR': l.best ?? '', 'Furnizor cel mai ieftin': l.bestSupplier ?? '',
-      'Valabil de la': l.validFrom ?? '', 'Valabil până la': l.validTo ?? '', 'Valoare facturată EUR': l.paid, 'Peste/sub listă EUR': l.agreed == null ? '' : l.priceDiff, 'Era cel mai ieftin': l.isCheapest == null ? '' : l.isCheapest ? 'Da' : 'Nu', 'Economie posibilă EUR': l.agreed == null || l.best == null ? '' : l.savings, 'Pierdut din alegere EUR': l.agreed == null || l.best == null ? '' : l.choiceDiff, Stare: STATUS[l.status].label }));
+      'Valabil de la': l.validFrom ?? '', 'Valabil până la': l.validTo ?? '', 'Valoare facturată EUR': l.paid, 'Peste/sub listă EUR': l.agreed == null || l.status === 'credit' ? '' : l.priceDiff, 'Era cel mai ieftin': l.isCheapest == null ? '' : l.isCheapest ? 'Da' : 'Nu', 'Economie posibilă EUR': l.agreed == null || l.best == null ? '' : l.savings, 'Pierdut din alegere EUR': l.agreed == null || l.best == null ? '' : l.choiceDiff, Stare: STATUS[l.status].label }));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Facturi');
     XLSX.writeFile(wb, `Control_preturi_furnizori_${start}_${end}.xlsx`);
   };

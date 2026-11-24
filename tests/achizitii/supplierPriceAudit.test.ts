@@ -72,7 +72,7 @@ describe('supplier contract validity', () => {
   });
   it('preserves credit notes with the correct historical prices', () => {
     const a = auditLine({ ...line('ALPHACOM ITALIA S.R.L.', 2.3, -100), day: '2026-03-12' }, historical);
-    expect(a.priceDiff).toBeCloseTo(-30); expect(a.choiceDiff).toBeCloseTo(-30); expect(a.totalDiff).toBeCloseTo(-60);
+    expect(a.priceDiff).toBe(0); expect(a.choiceDiff).toBeCloseTo(-30); expect(a.totalDiff).toBeCloseTo(-60);
   });
   it('saves and reads all historical periods without erasing old contracts', async () => {
     let saved: any;
