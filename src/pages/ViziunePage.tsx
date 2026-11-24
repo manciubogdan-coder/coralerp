@@ -30,6 +30,10 @@ import { OfficeEditor } from "@/components/viziune/OfficeEditor";
 import { DepotDetail, PickingDetail } from "@/components/viziune/WarehouseDetail";
 import { useWarehousePallets } from "@/components/viziune/useWarehousePallets";
 import { depotDetail, pickingDetail } from "@/lib/viziune/warehouseState";
+import { clockRo, copilotSnapshot, factorySummary, tourStops, type FactoryInput, type TourStop } from "@/lib/viziune/presentation";
+import { LiveBadge, TourOverlay, useTour } from "@/components/viziune/Presentation";
+import { ArgusCopilot } from "@/components/viziune/ArgusCopilot";
+import { Clapperboard } from "lucide-react";
 
 const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 const STATUS_LABEL: Record<string, string> = { lucreaza: "Lucrează", asteapta: "În așteptare", terminat: "Gata pe azi", oprita: "Oprită" };
@@ -185,6 +189,7 @@ export default function ViziunePage() {
   const emptyStation = sel?.kind === "station" ? data.layout.find((st) => st.id === sel.id) : null;
 
   const startEdit = (stationId: string | null = null) => {
+    tourRef.current?.end();
     setWalking(false); setLocked(false); setLooked(null);
     setDraft(data.layout.map((st) => ({ ...st })));
     setSel(stationId ? { kind: "station", id: stationId } : null);
@@ -201,7 +206,7 @@ export default function ViziunePage() {
   };
   const moveStation = (id: string, px: number, py: number) => setDraft((d) => d && d.map((st) => (st.id === id && (st.px !== px || st.py !== py) ? { ...st, px, py } : st)));
 
-  const startWalk = () => { setSel(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setWalking(true); };
+  const startWalk = () => { tourRef.current?.end(); setSel(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setWalking(true); };
   const exitWalk = () => { setWalking(false); setLocked(false); setLooked(null); held.current.clear(); walkPad.current = { fwd: 0, side: 0, turn: 0 }; setZone("productie"); };
   const officeNow = offices.people.filter((p) => p.status === "aplicatie" || p.status === "senior").length;
   /** What a walk-mode target id (machine, warehouse, office) opens. */
@@ -243,6 +248,52 @@ export default function ViziunePage() {
     prereceptions: (data.prereceptions ?? []).length, stoppedLines: data.lineViews.filter((l) => l.status === "oprita").length,
   };
   const seniorDocs = [...offices.docTotals.values()].reduce((a, t) => a + t.n, 0);
+
+  // Presentation: cinematic tour + Argus copilot, both on the same live figures as the screen.
+  const factoryInput: FactoryInput = {
+    now: data.now, orders: data.orders, lineViews: data.lineViews, receptions: data.receptions, prereceptions: data.prereceptions ?? [],
+    ready: data.ready, stock: data.stock, unassigned: data.unassigned.length,
+    offices: offices.loading || offices.error ? null : { online: officeNow, seniorDocs },
+  };
+  const summary = factorySummary(factoryInput);
+  const inputRef = useRef({ factoryInput, summary }); inputRef.current = { factoryInput, summary };
+  const stops = tourStops(summary, (id) => data.lineViews.find((l) => l.id === id)?.name ?? null);
+  const tourGo = (st: TourStop) => {
+    setSel(null);
+    if ("line" in st.camera) {
+      const station = (data.layout ?? []).find((x) => x.id === stationOfLine((st.camera as { line: string }).line));
+      if (station) { const [x, z] = toWorld(station.px, station.py); setZoneState("productie"); setCam((c) => ({ seq: c.seq + 1, slow: true, kind: "focus", x, z })); return; }
+      setZoneState("productie"); setCam((c) => ({ seq: c.seq + 1, slow: true, kind: "zone", zone: "productie" })); return;
+    }
+    const z = st.camera.zone as Zone;
+    setZoneState(z); setCam((c) => ({ seq: c.seq + 1, slow: true, kind: "zone", zone: z }));
+  };
+  const tour = useTour(stops, tourGo);
+  const touring = tour.running;
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const startTour = () => { if (editing) return; setWalking(false); setLocked(false); setLooked(null); setSel(null); setCopilotOpen(false); tour.start(); };
+  const tourRef = useRef(tour); tourRef.current = tour;
+  const startTourRef = useRef(startTour); startTourRef.current = startTour;
+  // P = start/stop the presentation tour (ignored while typing).
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.repeat || (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))) return;
+      if (ev.key.toLowerCase() === "p") { ev.preventDefault(); if (tourRef.current.running) tourRef.current.end(); else startTourRef.current(); }
+      else if (ev.key === "Escape" && tourRef.current.running) tourRef.current.end();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const copilotSnap = React.useCallback(() => copilotSnapshot(inputRef.current.factoryInput, inputRef.current.summary), []);
+  const copilotTarget = (t: { kind: "line" | "zone"; id: string }) => {
+    if (t.kind === "line") { if (!flyToStation(stationOfLine(t.id))) setZone("productie"); return; }
+    setZone(t.id as Zone);
+  };
+  const copilotDetails = (t: { kind: "line" | "zone"; id: string }) => {
+    if (t.kind === "line") { select({ kind: "line", id: t.id }); return; }
+    if (t.id === "receptie" || t.id === "depozit" || t.id === "livrare" || t.id === "birouri") select({ kind: t.id }); else setZone(t.id as Zone);
+  };
   const isOffice = sel?.kind === "office" || sel?.kind === "birouri";
   const isStore = sel?.kind === "depozit" || sel?.kind === "livrare";
   const pallets = useWarehousePallets(sel?.kind === "depozit" ? data.stock.map((x) => x.name).slice(0, 1000) : [], sel?.kind === "livrare" ? pickingDetail(data.orders, null).flatMap((st) => st.products.map((p) => p.productId)).filter((id): id is string => !!id).slice(0, 500) : [], isStore);
@@ -252,7 +303,15 @@ export default function ViziunePage() {
   return (
     <div className="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-background" data-scene-ready={ready ? "" : undefined}>
       {/* top HUD */}
-      {mobile ? (
+      {touring ? (
+      <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-center gap-2">
+        <div className="rounded-xl border bg-card/90 px-4 py-2 shadow-lg backdrop-blur-md">
+          <div className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Viziune</div>
+          <div className={`font-black leading-tight ${mobile ? "text-base" : "text-xl"}`}>Coral Biogreens · fabrica live</div>
+        </div>
+        <LiveBadge updatedAt={data.updatedAt} />
+      </div>
+      ) : mobile ? (
       <div className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-col gap-1.5">
         <div className="pointer-events-auto flex w-full items-center gap-1 rounded-lg border bg-card/95 px-1.5 py-1 shadow">
           <Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" onClick={() => navigate("/administrativ")} aria-label="Înapoi la Administrativ"><ArrowLeft className="h-4 w-4" /></Button>
@@ -267,6 +326,7 @@ export default function ViziunePage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="h-9 w-9 shrink-0" aria-label="Mai multe"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem disabled={editing} onSelect={() => startTour()}><Clapperboard className="mr-2 h-4 w-4" />Tur de prezentare</DropdownMenuItem>
               <DropdownMenuItem disabled={editing || data.layoutLoading} onSelect={() => startEdit()}><LayoutGrid className="mr-2 h-4 w-4" />Aranjează hala</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}><Sparkles className="mr-2 h-4 w-4" />{quality === "inalta" ? "Treci pe grafică rapidă" : "Treci pe grafică frumoasă"}</DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -277,6 +337,7 @@ export default function ViziunePage() {
         {!walking && !(sel && !editing) && <div className="pointer-events-auto -mx-2 flex snap-x gap-1.5 overflow-x-auto px-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
+        <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
           <div className={`rounded-lg border px-3 py-2 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
             <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</div>
@@ -304,6 +365,9 @@ export default function ViziunePage() {
             <p className="text-[10px] text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · se reîmprospătează la 30 s</p>
           </div>
           <Button size="icon" variant="ghost" onClick={() => { data.refetch(); offices.refetch(); }} title="Reîmprospătează"><RefreshCw className="h-4 w-4" /></Button>
+          <Button size="sm" disabled={editing} onClick={startTour} title="Zbor cinematic automat prin fabrică, cu cifrele de azi (tasta P). Orice clic în scenă îl oprește.">
+            <Clapperboard className="mr-1 h-4 w-4" />Tur prezentare
+          </Button>
           <Button size="sm" variant={editing ? "default" : "outline"} disabled={editing || data.layoutLoading} onClick={() => startEdit()} title="Mută, adaugă sau scoate utilaje și alege ce linie lucrează pe fiecare">
             <LayoutGrid className="mr-1 h-4 w-4" />Aranjează hala
           </Button>
@@ -315,9 +379,11 @@ export default function ViziunePage() {
             <Sparkles className="mr-1 h-4 w-4" />{quality === "inalta" ? "Grafică frumoasă" : "Grafică rapidă"}
           </Button>
         </div>
+        <LiveBadge updatedAt={data.updatedAt} className="pointer-events-auto self-center" />
         {!walking && <>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
+        <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
           <div className={`rounded-lg border px-3 py-2 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
             <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</div>
@@ -338,7 +404,7 @@ export default function ViziunePage() {
       </div>
       )}
 
-      {(!mobile || walking || padOpen) && <NavPad onNav={nav} onHome={walking ? exitWalk : () => setZone("all")} onHold={walking ? holdPad : undefined}
+      {!touring && (!mobile || walking || padOpen) && <NavPad onNav={nav} onHome={walking ? exitWalk : () => setZone("all")} onHold={walking ? holdPad : undefined}
         hideLines={mobile} className={mobile ? (walking ? "bottom-3 left-2" : "bottom-16 left-2") : undefined}
         lines={data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => ({ id: l.id, name: l.name, workers: l.workers, late: l.pace.status === "intarziat" }))}
         onLine={(id) => select({ kind: "line", id })} />}
@@ -365,7 +431,7 @@ export default function ViziunePage() {
       </>}
 
       {/* zone camera buttons */}
-      {!walking && mobile && <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+      {!walking && !touring && mobile && <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
         <Select value={zone} onValueChange={(z) => setZone(z as Zone)}>
           <SelectTrigger className="h-9 min-w-0 flex-1 text-xs" aria-label="Zonă"><SelectValue /></SelectTrigger>
           <SelectContent className="max-h-72 overflow-y-auto">
@@ -380,14 +446,14 @@ export default function ViziunePage() {
         </Select>
         <Button size="icon" variant={padOpen ? "default" : "outline"} className="h-9 w-9 shrink-0" onClick={() => setPadOpen((v) => !v)} aria-label="Butoane de mișcare"><Gamepad2 className="h-4 w-4" /></Button>
       </div>}
-      {!walking && !mobile && <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+      {!walking && !touring && !mobile && <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
         {(Object.keys(ZONES) as Zone[]).map((z) => (
           <Button key={z} size="sm" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
         ))}
       </div>}
 
       {/* legend */}
-      <div className={`absolute bottom-3 right-3 z-10 hidden rounded-lg border bg-card/95 px-3 py-2 text-[10px] shadow ${walking ? "" : "md:block"}`}>
+      <div className={`absolute bottom-3 right-3 z-10 hidden rounded-lg border bg-card/95 px-3 py-2 text-[10px] shadow ${walking || touring || copilotOpen ? "" : "md:block"}`}>
         <div className="mb-1 font-semibold">Lumina de pe linie</div>
         <div className="flex gap-3"><span>🟢 lucrează</span><span>🟡 așteaptă</span><span>🔵 gata</span><span>⚪ oprită</span><span className="font-bold text-destructive">🔴 ⚠ peste normă</span></div>
         <div className="mt-1 flex gap-3"><span className="font-semibold text-crm-cool">━ materie primă</span><span className="font-semibold text-crm-green">━ produs finit</span><span className="font-semibold text-crm-warning">━ graniță igienă</span></div>
@@ -402,7 +468,7 @@ export default function ViziunePage() {
           onReset={() => { if (window.confirm("Pui la loc utilajele și liniile din planul inițial al halei?")) { setDraft(defaultLayout(data.lines)); setSel(null); } }} />
       )}
 
-      {sel && !editing && (
+      {sel && !editing && !touring && (
         <div className={mobile
           ? "absolute inset-x-0 bottom-0 z-20 flex max-h-[72%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
           : `absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] flex-col rounded-xl border bg-card shadow-xl ${isStore ? "w-[min(94vw,560px)]" : "w-[min(92vw,380px)]"}`}>
@@ -455,16 +521,23 @@ export default function ViziunePage() {
         </div>
       )}
 
+      <TourOverlay tour={tour} mobile={mobile} />
+      {!editing && !walking && (
+        <ArgusCopilot snapshot={copilotSnap} onTarget={copilotTarget} onDetails={copilotDetails} onAsk={() => { if (tourRef.current.running) tourRef.current.end(); }}
+          open={copilotOpen} setOpen={setCopilotOpen} mobile={mobile} />
+      )}
+
       <OfficeEditor offices={offices} open={officeEdit} onClose={() => setOfficeEdit(false)} />
 
       {data.error && <div className="absolute left-1/2 top-24 z-20 -translate-x-1/2 rounded-lg border border-destructive bg-card px-3 py-2 text-sm text-destructive shadow">Nu am putut citi datele: {data.error.message}</div>}
 
-      <Canvas shadows dpr={dpr} gl={{ powerPreference: "high-performance" }} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => { if (!walking) setSel(null); }}>
+      <Canvas shadows dpr={dpr} gl={{ powerPreference: "high-performance" }} camera={{ position: ZONES.all.pos, fov: 42, near: 0.5, far: 300 }} onCreated={() => setTimeout(() => setReady(true), 500)} onPointerMissed={() => { if (!walking) setSel(null); }}
+        onPointerDown={() => { if (tourRef.current.running) tourRef.current.end(); }} onWheel={() => { if (tourRef.current.running) tourRef.current.end(); }}>
         {/* Sharpness follows the computer: lower resolution when frames drop, back up when there is room. */}
         {!walking && <ResponsiveLens />}
         <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={() => setDpr((d) => Math.max(0.6, +(d - 0.2).toFixed(2)))} onIncline={() => setDpr((d) => Math.min(MAX_DPR, +(d + 0.2).toFixed(2)))} onFallback={() => { setDpr(0.6); setQuality("rapida", false); }} />
         <FactoryScene data={data} offices={offices} camera={cam} selection={sel} onSelect={select} layout={draft ?? undefined} editing={editing} onMove={moveStation}
-          walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickTarget, onExit: exitWalk, onLock: setLocked } : null} />
+          walk={walking ? { pad: walkPad, onLook: setLooked, onPick: pickTarget, onExit: exitWalk, onLock: setLocked } : null} tour={touring} />
         {quality === "inalta" && <EffectsGuard onFail={() => setQuality("rapida", false)}><Effects /></EffectsGuard>}
       </Canvas>
     </div>

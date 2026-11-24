@@ -56,7 +56,7 @@ export const ZONES: Record<Zone, { pos: [number, number, number]; target: [numbe
 };
 
 /** A camera move asked by the page: fly to a zone, nudge with the navigation pad, or look at one machine. */
-export type CameraCmd = { seq: number } & ({ kind: "zone"; zone: Zone } | { kind: "nav"; action: NavAction } | { kind: "focus"; x: number; z: number });
+export type CameraCmd = { seq: number; /** Slow cinematic flight (presentation tour). */ slow?: boolean } & ({ kind: "zone"; zone: Zone } | { kind: "nav"; action: NavAction } | { kind: "focus"; x: number; z: number });
 
 export type Selection = { kind: "line"; id: string } | { kind: "station"; id: string } | { kind: "receptie" } | { kind: "depozit" } | { kind: "livrare" } | { kind: "office"; id: OfficeId } | { kind: "birouri" } | null;
 
@@ -591,6 +591,30 @@ function FlowStripe({ pts, color }: { pts: [number, number][]; color: string }) 
   return <>{segs.map((s, i) => (<mesh key={i} position={[s.x, 0.014, s.z]} rotation={[-Math.PI / 2, 0, s.rot]}><planeGeometry args={[0.25, s.len]} /><meshBasicMaterial color={color} /></mesh>))}</>;
 }
 
+/** Light pulses running along the floor flows in the direction goods travel (glow in the beautiful graphics). */
+function FlowPulse({ pts, color }: { pts: [number, number][]; color: string }) {
+  const path = useMemo(() => {
+    const cp = new THREE.CurvePath<THREE.Vector3>();
+    pts.slice(1).forEach((p, i) => { const [ax, az] = toWorld(...pts[i]); const [bx, bz] = toWorld(...p); cp.add(new THREE.LineCurve3(new THREE.Vector3(ax, 0.03, az), new THREE.Vector3(bx, 0.03, bz))); });
+    return cp;
+  }, [pts]);
+  const glow = useMemo(() => new THREE.Color(color).multiplyScalar(3), [color]);
+  const ref = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    const L = path.getLength() || 1;
+    ref.current?.children.forEach((m, i) => {
+      const t = ((clock.elapsedTime * 3.2) / L + i / 2) % 1;
+      const p = path.getPointAt(t), q = path.getPointAt(Math.min(1, t + 0.002));
+      m.position.copy(p); m.rotation.set(-Math.PI / 2, 0, Math.atan2(q.x - p.x, q.z - p.z));
+    });
+  });
+  return (
+    <group ref={ref} userData={LIVE}>
+      {[0, 1].map((i) => (<mesh key={i} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.34, 1.8]} /><meshBasicMaterial color={glow} toneMapped={false} transparent opacity={0.9} depthWrite={false} /></mesh>))}
+    </group>
+  );
+}
+
 /** Crates riding a floor flow while the hall works: raw material in, finished cartons out. */
 function FlowMovers({ pts, kind, count }: { pts: [number, number][]; kind: string; count: number }) {
   // pts always run in the direction goods travel (see moverRoutes)
@@ -692,7 +716,7 @@ function Clickable({ onSelect, children }: { onSelect: () => void; children: Rea
   return <group onClick={(e) => { e.stopPropagation(); if (!walking) onSelect(); }} onPointerOver={(e) => { e.stopPropagation(); if (!walking) document.body.style.cursor = "pointer"; }} onPointerOut={() => { document.body.style.cursor = ""; }}>{children}</group>;
 }
 
-function CameraRig({ cmd, controls }: { cmd: CameraCmd; controls: React.MutableRefObject<any> }) {
+function CameraRig({ cmd, controls, tour = false }: { cmd: CameraCmd; controls: React.MutableRefObject<any>; tour?: boolean }) {
   const { camera } = useThree();
   const goal = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const seen = useRef(-1);
@@ -710,8 +734,10 @@ function CameraRig({ cmd, controls }: { cmd: CameraCmd; controls: React.MutableR
       goal.current = { pos: new THREE.Vector3(...v.pos), target: new THREE.Vector3(...v.target) };
       if (first) { camera.position.copy(goal.current.pos); c.target.copy(goal.current.target); c.update(); goal.current = null; return; }
     }
+    // In the tour the camera circles slowly around each stop once it has arrived there.
+    c.autoRotate = tour && !goal.current; c.autoRotateSpeed = 0.5;
     if (!goal.current) return;
-    const k = 1 - Math.exp(-4 * Math.min(d, 0.05));
+    const k = 1 - Math.exp(-(cmd.slow ? 0.9 : 4) * Math.min(d, 0.05));
     camera.position.lerp(goal.current.pos, k); c.target.lerp(goal.current.target, k); c.update();
     if (camera.position.distanceTo(goal.current.pos) < 0.15 && c.target.distanceTo(goal.current.target) < 0.15) goal.current = null;
   });
@@ -750,8 +776,10 @@ function HallShell({ tall = false }: { tall?: boolean }) {
   );
 }
 
-export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove, offices = null, walk }: {
+export function FactoryScene({ data: raw, camera, selection, onSelect, layout: layoutProp, editing = false, onMove, offices = null, walk, tour = false }: {
   data: FactoryData; camera: CameraCmd; selection: Selection; onSelect: (s: Selection) => void;
+  /** Presentation tour running: slow flights and a slow circle around each stop. */
+  tour?: boolean;
   /** Walking through the factory at eye height instead of the bird's-eye camera. */
   walk?: { pad: React.MutableRefObject<WalkPad>; onLook: (targetId: string | null) => void; onPick: (targetId: string) => void; onExit: () => void; onLock: (locked: boolean) => void } | null;
   /** People in the offices (office building + offices in the hall). */
@@ -810,7 +838,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         <Lightformer intensity={0.9} color="#ffe3bf" position={[14, 3, 4]} rotation-y={-Math.PI / 2} scale={[40, 3, 1]} />
         <Lightformer intensity={0.5} color="#9fb3a0" position={[0, -4, 0]} rotation-x={-Math.PI / 2} scale={[40, 40, 1]} />
       </Environment>
-      <CameraRig cmd={camera} controls={controls} />
+      <CameraRig cmd={camera} controls={controls} tour={tour && !walking && !editing} />
 
       <Grounds />
 
@@ -835,6 +863,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
         </mesh>
       )}
       {working.length > 0 && MOVER_ROUTES.map((f, i) => <FlowMovers key={i} pts={f.pts} kind={f.kind} count={f.pts.length > 4 ? 5 : 3} />)}
+      {!walking && MOVER_ROUTES.map((f, i) => <FlowPulse key={`pulse${i}`} pts={f.pts} color={C.flow[f.kind] ?? C.flow.materie} />)}
 
       {/* ===== DEPOZIT MP (frig), la poarta de materie primă ===== */}
       <Clickable onSelect={() => onSelect({ kind: "depozit" })}>

@@ -31,6 +31,9 @@ import { SALES_PRICING_ACTIONS, PURCHASING_RADAR_ACTIONS } from "../_shared/crmR
 import { validateHallLayout } from "../_shared/hallLayoutRules.ts";
 import { officeActivity, saveOfficeConfig } from "../_shared/officeActivity.ts";
 import { viziunePallets } from "../_shared/viziunePallets.ts";
+import { cleanCopilotRequest, copilotInstructions, parseCopilotReply, voiceText, COPILOT_LIMITS } from "../_shared/viziuneCopilotRules.ts";
+import { generateSpeech, transcribeAudio, GatewayError } from "npm:@lovable.dev/ai-gateway@0.1.13";
+import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
@@ -774,6 +777,50 @@ Deno.serve(async (req) => {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         try { return json(await radarSnapshot(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'viziune_copilot': {
+        // Argus in the 3D factory: answers from the live picture the screen already shows (no tools, one short call).
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const body = await req.json().catch(() => ({}));
+        let question = String(body?.question ?? '');
+        if (!question.trim() && typeof body?.audio === 'string') {
+          const bytes = decodeBase64(body.audio);
+          if (!bytes.length || bytes.length > COPILOT_LIMITS.audioBytes) return json({ error: 'Înregistrarea e prea lungă sau goală.' }, 400);
+          const type = /^audio\/[a-z0-9.+-]+/i.exec(String(body?.type ?? ''))?.[0] ?? 'audio/webm';
+          try {
+            const t: any = await transcribeAudio({ model: 'openai/gpt-transcribe', file: new Blob([bytes], { type }), language: 'ro' } as any);
+            question = String(t?.text ?? '').trim();
+          } catch (e) { return json({ error: e instanceof GatewayError ? `Nu am înțeles înregistrarea (${e.code}).` : friendlyError(e) }, 400); }
+          if (!question) return json({ error: 'Nu am auzit nicio întrebare. Mai încearcă, mai aproape de microfon.' }, 400);
+        }
+        let r;
+        try { r = cleanCopilotRequest({ ...body, question }); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+        try {
+          const now = new Date().toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' });
+          const history = r.history.map((t) => `${t.role === 'user' ? 'Întrebare' : 'Argus'}: ${t.text}`).join('\n');
+          const res = await generateText({
+            model: brain(createLovableAiGatewayRunIdFetch()), maxOutputTokens: 600, maxRetries: 1,
+            instructions: copilotInstructions(now),
+            prompt: `Fabrica acum (JSON):\n${r.snapshot}\n\n${history ? `Discuția de până acum:\n${history}\n\n` : ''}Întrebarea: ${r.question}`,
+          });
+          return json({ question: r.question, ...parseCopilotReply(res.text, r.lineIds) });
+        } catch (e) { return json({ question: r.question, error: friendlyError(e) }, 400); }
+      }
+      case 'viziune_voice': {
+        // Argus speaks Romanian with a real voice; the browser falls back to its own voice if this fails.
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const text = voiceText((await req.json().catch(() => ({})))?.text);
+        if (!text) return json({ error: 'Nimic de spus.' }, 400);
+        try {
+          const audio = await generateSpeech({
+            model: 'google/gemini-3.1-flash-tts-preview',
+            contents: [{ role: 'user', parts: [{ text: `Spune pe un ton calm, sigur și prietenos, ca un prezentator: ${text}` }] }],
+            generationConfig: { responseModalities: ['AUDIO'], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } } } },
+          } as any);
+          const blob = await audio.blob();
+          return json({ audio: encodeBase64(new Uint8Array(await blob.arrayBuffer())), type: audio.contentType || 'audio/wav' });
+        } catch (e) { return json({ error: e instanceof GatewayError ? `Vocea nu e disponibilă (${e.code}).` : friendlyError(e) }, 400); }
       }
       case 'viziune_layout': {
         const { data, error } = await c.cloud.from('viziune_hala_layout').select('stations, updated_by, updated_at').maybeSingle();
