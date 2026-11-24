@@ -1,6 +1,9 @@
 /** Supplier price audit: what was billed in Senior vs the agreed list price and vs the cheapest listed supplier. */
 export type PriceListItem = { product: string; category: string; prices: Record<string, number> };
-export type PriceList = { currency: string; items: PriceListItem[]; suppliers: { name: string; aliases: string[] }[] };
+import type { SupplierPricePeriod } from '../../../supabase/functions/_shared/supplierPricePeriods';
+export { validatePricePeriods } from '../../../supabase/functions/_shared/supplierPricePeriods';
+export type { SupplierPricePeriod } from '../../../supabase/functions/_shared/supplierPricePeriods';
+export type PriceList = { currency: string; items: PriceListItem[]; suppliers: { name: string; aliases: string[] }[]; periods?: SupplierPricePeriod[] };
 export type InvoiceLine = { id: number | string; day: string; tip: string; doc: string; sup: string; art: string; um: string; q: number; pron: number; vron: number; peur: number | null; pref: number | null; cur: string; rate: number | null };
 export type LineStatus = 'ok' | 'peste' | 'sub' | 'fara_pret' | 'necunoscut';
 export type AuditLine = InvoiceLine & {
@@ -8,7 +11,7 @@ export type AuditLine = InvoiceLine & {
   /** EUR: supplier billed vs its own agreed price (+ = we paid more). */ priceDiff: number;
   /** EUR at list prices: chosen supplier vs cheapest one. */ choiceDiff: number;
   /** EUR: what we paid vs everything at the cheapest list price. */ totalDiff: number;
-  paid: number; status: LineStatus;
+  paid: number; status: LineStatus; validFrom: string | null; validTo: string | null;
 };
 
 export const PRICE_TOLERANCE_EUR = 0.005;
@@ -29,8 +32,17 @@ export function cheapest(item: PriceListItem | undefined): { supplier: string; p
 }
 
 export function auditLine(l: InvoiceLine, list: PriceList): AuditLine {
-  const item = list.items.find((i) => norm(i.product) === norm(l.art));
+  const dated = (list.periods?.length ?? 0) > 0;
+  const active = (list.periods ?? []).filter((p) => p.validFrom <= l.day && p.validTo >= l.day);
+  const prices: Record<string, number> = {};
+  let category = '';
+  for (const p of active) {
+    const row = p.items.find((i) => norm(i.product) === norm(l.art));
+    if (row) { prices[p.supplier] = row.price; category = row.category; }
+  }
+  const item = dated ? { product: l.art, category, prices } : list.items.find((i) => norm(i.product) === norm(l.art));
   const supplier = matchSupplier(l.sup, list);
+  const period = active.find((p) => p.supplier === supplier && p.items.some((i) => norm(i.product) === norm(l.art)));
   const agreed = supplier ? item?.prices[supplier] ?? null : null;
   const b = cheapest(item);
   const peur = l.peur ?? 0, q = l.q;
@@ -38,20 +50,22 @@ export function auditLine(l: InvoiceLine, list: PriceList): AuditLine {
     : peur - agreed > PRICE_TOLERANCE_EUR ? 'peste' : agreed - peur > PRICE_TOLERANCE_EUR ? 'sub' : 'ok';
   return {
     ...l, supplier, category: item?.category ?? '', agreed, best: b?.price ?? null, bestSupplier: b?.supplier ?? null,
+    validFrom: period?.validFrom ?? null, validTo: period?.validTo ?? null,
     paid: q * peur,
     priceDiff: agreed != null ? q * (peur - agreed) : 0,
-    choiceDiff: b ? q * ((agreed ?? peur) - b.price) : 0,
+    choiceDiff: b && agreed != null ? q * (agreed - b.price) : 0,
     totalDiff: b ? q * (peur - b.price) : 0,
     status,
   };
 }
 
-export type Totals = { qty: number; paid: number; atAgreed: number; atBest: number; priceDiff: number; choiceDiff: number; totalDiff: number; lines: number; issues: number };
+export type Totals = { qty: number; paid: number; atAgreed: number; atBest: number; priceDiff: number; choiceDiff: number; totalDiff: number; lines: number; issues: number; withoutAgreed: number; withoutBest: number };
 export function totals(lines: AuditLine[]): Totals {
-  const t: Totals = { qty: 0, paid: 0, atAgreed: 0, atBest: 0, priceDiff: 0, choiceDiff: 0, totalDiff: 0, lines: lines.length, issues: 0 };
+  const t: Totals = { qty: 0, paid: 0, atAgreed: 0, atBest: 0, priceDiff: 0, choiceDiff: 0, totalDiff: 0, lines: lines.length, issues: 0, withoutAgreed: 0, withoutBest: 0 };
   for (const l of lines) {
     t.qty += l.q; t.paid += l.paid; t.priceDiff += l.priceDiff; t.choiceDiff += l.choiceDiff; t.totalDiff += l.totalDiff;
-    t.atAgreed += l.paid - l.priceDiff; t.atBest += l.paid - l.totalDiff;
+    if (l.agreed != null) t.atAgreed += l.paid - l.priceDiff; else t.withoutAgreed++;
+    if (l.best != null) t.atBest += l.paid - l.totalDiff; else t.withoutBest++;
     if (l.status !== 'ok' && l.status !== 'sub') t.issues += 1;
   }
   return t;

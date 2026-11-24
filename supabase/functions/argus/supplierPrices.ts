@@ -1,29 +1,6 @@
 import { seniorSqlAll } from "../_shared/senior.ts";
-
-/** Agreed supplier price list (EUR per Senior unit) — append-only, latest row active. */
-export async function supplierPriceList(cloud: any) {
-  const { data, error } = await cloud.from("achizitii_preturi_furnizori").select("data, created_by, created_at").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw error;
-  return { list: data?.data ?? { currency: "EUR", items: [], suppliers: [] }, updated_by: data?.created_by ?? null, updated_at: data?.created_at ?? null };
-}
-
-const txt = (v: unknown, n = 120) => String(v ?? "").trim().slice(0, n);
-
-export async function saveSupplierPriceList(cloud: any, body: any, who: string) {
-  const raw = body?.list ?? {};
-  const items = (Array.isArray(raw.items) ? raw.items : []).slice(0, 500).map((i: any) => {
-    const prices: Record<string, number> = {};
-    for (const [k, v] of Object.entries(i?.prices ?? {})) { const n = Number(v); if (txt(k) && Number.isFinite(n) && n > 0 && n < 10000) prices[txt(k)] = Math.round(n * 10000) / 10000; }
-    return { product: txt(i?.product).toUpperCase(), category: txt(i?.category, 60), prices };
-  }).filter((i: any) => i.product);
-  const names = new Set(items.flatMap((i: any) => Object.keys(i.prices)));
-  const given = new Map((Array.isArray(raw.suppliers) ? raw.suppliers : []).map((s: any) => [txt(s?.name), (Array.isArray(s?.aliases) ? s.aliases : []).map((a: unknown) => txt(a, 200)).filter(Boolean).slice(0, 10)]));
-  const suppliers = [...names].sort().map((name) => ({ name, aliases: given.get(name) ?? [] }));
-  const list = { currency: "EUR", items, suppliers };
-  const { error } = await cloud.from("achizitii_preturi_furnizori").insert({ data: list, created_by: who });
-  if (error) throw error;
-  return { list };
-}
+import { supplierPriceList } from "./supplierPriceStore.ts";
+export { supplierPriceList, saveSupplierPriceList } from "./supplierPriceStore.ts";
 
 const day = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v ?? "")) ? String(v) : null;
 const lit = (s: string) => `N'${s.replace(/'/g, "''")}'`;
@@ -34,7 +11,8 @@ export async function supplierPriceAudit(cloud: any, body: any) {
   if (!start || !end || start > end) throw new Error("Perioadă invalidă.");
   if ((Date.parse(end) - Date.parse(start)) / 86400000 > 370) throw new Error("Perioada maximă este un an.");
   const { list } = await supplierPriceList(cloud);
-  const names = [...new Set((list.items ?? []).map((i: any) => String(i.product)))] as string[];
+  const names = [...new Set([...((list.items ?? []).map((i: any) => String(i.product))),
+    ...(list.periods ?? []).flatMap((p: any) => p.items.map((i: any) => String(i.product)))])] as string[];
   if (!names.length) return { lines: [] };
   const lines = await seniorSqlAll(cloud, `SELECT d.D_ID id, CONVERT(char(10), h.Data, 120) day, t.Cod tip,
       LTRIM(RTRIM(ISNULL(h.Serie_Document_Primar,'')+' '+ISNULL(CAST(h.Numar_Document_Primar AS nvarchar(40)),''))) doc,

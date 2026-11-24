@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { auditLine, matchSupplier, totals, type PriceList, type InvoiceLine } from '../../src/lib/achizitii/supplierPriceAudit';
+import { auditLine, matchSupplier, totals, validatePricePeriods, type SupplierPricePeriod, type PriceList, type InvoiceLine } from '../../src/lib/achizitii/supplierPriceAudit';
+import { saveSupplierPriceList, supplierPriceList } from '../../supabase/functions/argus/supplierPriceStore';
 
 const list: PriceList = { currency: 'EUR', items: [{ product: 'RUCOLA VRAC', category: 'Salate', prices: { 'Alphacom Italia': 2.05, 'Sole e Rugiada': 1.45, 'Aniello De Divitiis': 1.6 } }],
   suppliers: [{ name: 'Alphacom Italia', aliases: ['ALPHACOM ITALIA S.R.L.'] }, { name: 'Sole e Rugiada', aliases: [] }, { name: 'Aniello De Divitiis', aliases: [] }] };
@@ -25,5 +26,66 @@ describe('supplier price audit', () => {
   it('credit notes reduce the totals', () => {
     const t = totals([auditLine(line('ALPHACOM ITALIA S.R.L.', 2.05, 100), list), auditLine(line('ALPHACOM ITALIA S.R.L.', 2.05, -20), list)]);
     expect(t.qty).toBe(80); expect(t.choiceDiff).toBeCloseTo(48);
+  });
+});
+
+const period = (id: string, supplier: string, from: string, to: string, price: number): SupplierPricePeriod => ({ id, supplier, validFrom: from, validTo: to, items: [{ product: 'RUCOLA VRAC', category: 'Salate', price }] });
+const historical: PriceList = { ...list, periods: [
+  period('a1', 'Alphacom Italia', '2026-01-05', '2026-03-12', 2),
+  period('a2', 'Alphacom Italia', '2026-03-13', '2026-12-31', 2.5),
+  period('s1', 'Sole e Rugiada', '2026-01-05', '2026-03-12', 1.7),
+  period('s2', 'Sole e Rugiada', '2026-03-13', '2026-12-31', 3),
+] };
+const on = (day: string) => auditLine({ ...line('ALPHACOM ITALIA S.R.L.', 2.3, 1000), day }, historical);
+
+describe('supplier contract validity', () => {
+  it('includes 5 January in the old list', () => { expect(on('2026-01-05').agreed).toBe(2); });
+  it('includes 12 March in the old list', () => { expect(on('2026-03-12').agreed).toBe(2); });
+  it('uses the new price from 13 March, not the latest list for old invoices', () => {
+    expect(on('2026-03-13').agreed).toBe(2.5);
+    expect(on('2026-02-01').priceDiff).toBeCloseTo(300);
+  });
+  it('compares only prices valid on the same day for each supplier', () => {
+    expect(on('2026-03-12').bestSupplier).toBe('Sole e Rugiada');
+    expect(on('2026-03-12').choiceDiff).toBeCloseTo(300);
+    expect(on('2026-03-13').bestSupplier).toBe('Alphacom Italia');
+    expect(on('2026-03-13').totalDiff).toBeCloseTo(-200);
+  });
+  it('does not invent a price before 5 January or use the undated initial list', () => {
+    const a = on('2026-01-04');
+    expect(a.agreed).toBeNull(); expect(a.best).toBeNull(); expect(a.status).toBe('fara_pret');
+    const t = totals([a]); expect(t.withoutAgreed).toBe(1); expect(t.withoutBest).toBe(1); expect(t.atBest).toBe(0);
+  });
+  it('reports a gap rather than carrying a previous contract forward', () => {
+    const a = auditLine({ ...line('ALPHACOM ITALIA S.R.L.', 2), day: '2026-03-13' }, { ...historical, periods: historical.periods?.filter((p) => p.id !== 'a2') });
+    expect(a.agreed).toBeNull(); expect(a.choiceDiff).toBe(0); expect(a.best).toBe(3);
+  });
+  it('rejects overlapping periods of the same supplier including shared endpoints', () => {
+    expect(() => validatePricePeriods([period('1', 'Alphacom Italia', '2026-01-05', '2026-03-12', 2), period('2', 'Alphacom Italia', '2026-03-12', '2026-04-01', 3)])).toThrow('se suprapun');
+  });
+  it('allows adjacent periods and concurrent contracts of different suppliers', () => {
+    expect(() => validatePricePeriods(historical.periods ?? [])).not.toThrow();
+  });
+  it('rejects impossible calendar dates and reversed periods', () => {
+    expect(() => validatePricePeriods([period('1', 'A', '2026-02-30', '2026-03-12', 2)])).toThrow();
+    expect(() => validatePricePeriods([period('1', 'A', '2026-03-13', '2026-03-12', 2)])).toThrow();
+  });
+  it('preserves credit notes with the correct historical prices', () => {
+    const a = auditLine({ ...line('ALPHACOM ITALIA S.R.L.', 2.3, -100), day: '2026-03-12' }, historical);
+    expect(a.priceDiff).toBeCloseTo(-30); expect(a.choiceDiff).toBeCloseTo(-30); expect(a.totalDiff).toBeCloseTo(-60);
+  });
+  it('saves and reads all historical periods without erasing old contracts', async () => {
+    let saved: any;
+    const cloud = { from: () => ({ insert: async (row: any) => { saved = row; return { error: null }; }, select: () => ({ order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: { ...saved, created_at: '2026-11-24' }, error: null }) }) }) }) }) };
+    await saveSupplierPriceList(cloud, { list: historical }, 'test-admin');
+    const read = await supplierPriceList(cloud);
+    expect(read.list.periods).toHaveLength(4);
+    expect(auditLine({ ...line('ALPHACOM ITALIA S.R.L.', 2.3), day: '2026-03-12' }, read.list).agreed).toBe(2);
+  });
+  it('rejects overlap server-side before storing anything', async () => {
+    let writes = 0;
+    const cloud = { from: () => ({ insert: async () => { writes++; return { error: null }; } }) };
+    await expect(saveSupplierPriceList(cloud, { list: { ...historical, periods: [...(historical.periods ?? []), period('bad', 'Alphacom Italia', '2026-03-12', '2026-04-01', 9)] } }, 'test-admin')).rejects.toThrow('se suprapun');
+    expect(writes).toBe(0);
   });
 });
