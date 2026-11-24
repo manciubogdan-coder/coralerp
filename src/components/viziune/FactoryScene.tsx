@@ -493,7 +493,7 @@ function LateBeacon({ minutes }: { minutes: number }) {
     <group ref={g} position={[0, 5.3, 0]}>
       <mesh><octahedronGeometry args={[0.45]} /><meshStandardMaterial ref={mat} color={C.status.late} emissive={C.status.late} emissiveIntensity={1.6} /></mesh>
       <Html zIndexRange={[9, 0]} center position={[0, 0.8, 0]} distanceFactor={labelScale(walking, 18)} style={{ pointerEvents: "none" }}>
-        <div className="whitespace-nowrap rounded bg-destructive px-1.5 py-0.5 text-[11px] font-black text-destructive-foreground shadow">⚠ +{minutesLabel(minutes)}</div>
+        <div className="whitespace-nowrap rounded bg-destructive px-1 py-px text-[9px] font-bold text-destructive-foreground shadow">⚠ +{minutesLabel(minutes)}</div>
       </Html>
     </group>
   );
@@ -504,24 +504,24 @@ function StationCard({ st, line }: { st: Station; line?: LineView }) {
   const p = line.pace;
   const late = p.status === "intarziat";
   return (
-    <div className={`w-52 rounded-lg border bg-card/95 p-2 text-card-foreground shadow-lg ${late ? "border-destructive ring-2 ring-destructive/60" : ""}`}>
+    <div className={`w-44 rounded-md border bg-card/95 p-1 text-card-foreground shadow leading-tight ${late ? "border-destructive ring-1 ring-destructive/60" : ""}`}>
       <div className="flex items-center justify-between gap-1">
-        <div className="flex min-w-0 items-center gap-1.5 text-xs font-bold"><span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: late ? C.status.late : C.status[line.status] }} /><span className="truncate">{line.name}</span></div>
+        <div className="flex min-w-0 items-center gap-1 text-[10px] font-bold"><span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: late ? C.status.late : C.status[line.status] }} /><span className="truncate">{line.name}</span></div>
         <PaceBadge pace={p} />
       </div>
-      {line.workers > 0 && <div className="mt-0.5 flex items-center gap-1 text-[11px] font-bold"><span className="rounded border bg-secondary px-1.5 py-px text-secondary-foreground">👷 {line.workers} {line.workers === 1 ? "operator" : "operatori"}</span>{line.operator && <span className="truncate text-[10px] font-normal text-muted-foreground">{line.operator}</span>}</div>}
+      {line.workers > 0 && <div className="mt-px flex items-center gap-1 text-[9px] font-bold"><span className="shrink-0 rounded border bg-secondary px-1 text-secondary-foreground">👷 {line.workers} {line.workers === 1 ? "operator" : "operatori"}</span>{line.operator && <span className="truncate text-[9px] font-normal text-muted-foreground">{line.operator}</span>}</div>}
       {p.orders.length > 0 ? <>
-        <div className="truncate text-[10px] font-medium">{p.orders[0].product}{p.orders.length > 1 ? ` +${p.orders.length - 1} comenzi` : ""}</div>
-        <div className="text-[10px] text-muted-foreground tabular-nums">început {clockTime(p.startedAt)} · lucrat {minutesLabel(p.workedHours * 60)}</div>
+        <div className="truncate text-[9px] font-medium">{p.orders[0].product}{p.orders.length > 1 ? ` +${p.orders.length - 1} comenzi` : ""}</div>
+        <div className="text-[9px] text-muted-foreground tabular-nums">început {clockTime(p.startedAt)} · lucrat {minutesLabel(p.workedHours * 60)}</div>
         {p.normHours != null ? (
-          <div className={`text-[10px] tabular-nums ${late ? "font-bold text-destructive" : ""}`}>
+          <div className={`text-[9px] tabular-nums ${late ? "font-bold text-destructive" : ""}`}>
             {late ? `trebuia gata la ${clockTime(p.dueAt)}` : `gata la ~${clockTime(p.dueAt)}`} · {p.qty.toLocaleString("ro-RO")} buc la {line.norm}/h
           </div>
-        ) : <div className="text-[10px] text-muted-foreground">Linia nu are normă setată</div>}
+        ) : <div className="text-[9px] text-muted-foreground">Linia nu are normă setată</div>}
       </> : (
-        <div className="text-[10px] text-muted-foreground">{line.status === "lucreaza" ? "Lucrează pe o comandă din altă zi" : line.status === "asteapta" ? (line.ordersTotal ? `Oprită · ${p.queueOrders} comenzi așteaptă` : "Fără comenzi azi") : line.status === "terminat" ? "Tot ce avea azi e gata" : "Linie inactivă"}</div>
+        <div className="text-[9px] text-muted-foreground">{line.status === "lucreaza" ? "Lucrează pe o comandă din altă zi" : line.status === "asteapta" ? (line.ordersTotal ? `Oprită · ${p.queueOrders} comenzi așteaptă` : "Fără comenzi azi") : line.status === "terminat" ? "Tot ce avea azi e gata" : "Linie inactivă"}</div>
       )}
-      {line.pieces > 0 && <div className="mt-1 h-1 overflow-hidden rounded bg-muted"><div className="h-full bg-primary" style={{ width: `${Math.round((line.produced / line.pieces) * 100)}%` }} /></div>}
+      {line.pieces > 0 && <div className="mt-0.5 h-0.5 overflow-hidden rounded bg-muted"><div className="h-full bg-primary" style={{ width: `${Math.round((line.produced / line.pieces) * 100)}%` }} /></div>}
     </div>
   );
 }
@@ -571,11 +571,11 @@ function StationNode({ st, line, selected, onSelect, editing, onGrab }: { st: St
       {late && <LateBeacon minutes={line!.pace.lateMinutes} />}
       {walking ? (
         // At eye height the card of the machine right next to you would fill the screen: the crosshair shows it instead.
-        <NearHtml minDist={6} maxDist={45} position={[0, big ? 5.2 : 2.6, 0]} center distanceFactor={labelScale(walking, 20)} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
+        <NearHtml minDist={6} maxDist={45} position={[0, big ? 5.2 : 2.6, 0]} center distanceFactor={labelScale(walking, 17)} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
           <StationCard st={st} line={line} />
         </NearHtml>
       ) : (
-        <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={20} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
+        <Html position={[0, big ? 6.4 : 3.2, 0]} center distanceFactor={17} zIndexRange={[9, 0]} style={{ pointerEvents: "none" }}>
           <StationCard st={st} line={line} />
         </Html>
       )}
