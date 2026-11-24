@@ -845,7 +845,7 @@ export function FactoryScene({ data: raw, camera, selection, onSelect, layout: l
       {/* ===== HALA DE PRODUCȚIE (după plan) ===== */}
       <HallShell tall={walking} />
       {walking && <HallLights />}
-      <ZoneSign position={[-W2 - 2, 4, -D2 + 3]} title="Hala de producție" sub={`${working.length} linii lucrează · ${data.lineViews.reduce((a, l) => a + l.workers, 0)} oameni${late.length ? ` · ⚠ ${late.length} peste normă` : ""}`} />
+      <ZoneSign position={[-W2 - 2, 4, -D2 + 3]} title="Hala de producție" sub={`${working.length} linii lucrează · ${data.lineViews.reduce((a, l) => a + l.workers, 0)} oameni${late.length ? ` · ⚠ ${late.length} sub normă` : ""}`} />
       {layout.map((st) => {
         const lid = byStation.get(st.id);
         const line = lid ? byId.get(lid) : undefined;

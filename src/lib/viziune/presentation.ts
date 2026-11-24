@@ -77,8 +77,8 @@ export function tourStops(s: FactorySummary, lineName: (id: string) => string | 
   if (s.showcaseLine) {
     const late = s.late.find((l) => l.id === s.showcaseLine);
     stops.push({ key: "linie", camera: { line: s.showcaseLine }, seconds: 9, kicker: late ? "⚠ Alertă live" : "4 · Pe linie", title: lineName(s.showcaseLine) ?? "Linie de producție",
-      facts: late ? [`Peste normă cu ${late.lateMinutes} minute`, "Vedem problema cât se întâmplă, nu deseară", s.late.length > 1 ? `${s.late.length} linii peste normă azi` : "Singura linie peste normă acum"]
-        : ["Comenzile, operatorii și ritmul pe normă", "Actualizat la fiecare 30 de secunde", s.late.length ? `${s.late.length} linii peste normă azi` : "Toate liniile sunt în normă"] });
+      facts: late ? [`Sub normă · întârziere ${late.lateMinutes} minute`, "Vedem problema cât se întâmplă, nu deseară", s.late.length > 1 ? `${s.late.length} linii sub normă azi` : "Singura linie sub normă acum"]
+        : ["Comenzile, operatorii și ritmul pe normă", "Actualizat la fiecare 30 de secunde", s.late.length ? `${s.late.length} linii sub normă azi` : "Toate liniile sunt în normă"] });
   }
   stops.push(
     { key: "livrare", camera: { zone: "livrare" }, seconds: 8, kicker: "5 · Ieșire", title: "Picking & livrare",
@@ -94,19 +94,19 @@ export function tourStops(s: FactorySummary, lineName: (id: string) => string | 
 /** What Argus sees: compact, Romanian keys, only today's real figures. */
 export function copilotSnapshot(d: FactoryInput, s: FactorySummary) {
   const STATUS: Record<string, string> = { lucreaza: "lucrează", asteapta: "așteaptă", terminat: "gata pe azi", oprita: "oprită" };
-  const PACE: Record<string, string> = { in_norma: "în normă", aproape: "aproape de limita normei", intarziat: "peste normă", fara_norma: "fără normă setată", liber: "nicio comandă în lucru" };
+  const PACE: Record<string, string> = { in_norma: "în normă", aproape: "aproape de limita normei", intarziat: "sub normă", fara_norma: "fără normă setată", liber: "nicio comandă în lucru" };
   return {
     acum: new Date(d.now).toLocaleString("ro-RO", { timeZone: "Europe/Bucharest" }),
     total: {
       bucati_planificate_azi: s.pieces, bucati_facute: s.produced, procent_gata: s.pct, comenzi: s.orders, comenzi_gata: s.ordersDone,
       comenzi_fara_linie: d.unassigned, linii_total: s.linesTotal, linii_care_lucreaza: s.linesWorking, oameni_pe_linii: s.people,
-      linii_peste_norma: s.late.length, toate_liniile_termina_azi_pe_la: s.dayDoneAt ? clockRo(s.dayDoneAt) : null,
+      linii_sub_norma: s.late.length, toate_liniile_termina_azi_pe_la: s.dayDoneAt ? clockRo(s.dayDoneAt) : null,
     },
     linii: d.lineViews.map((l) => ({
       id: l.id, nume: l.name, stare: STATUS[l.status] ?? l.status, oameni: l.workers, operator: l.operator, produs_acum: l.currentProduct,
       comenzi: l.ordersTotal, comenzi_gata: l.ordersDone, bucati_planificate: l.pieces, bucati_facute: l.produced,
       norma_buc_ora: l.norm || null, ritm: PACE[l.pace.status] ?? l.pace.status,
-      minute_peste_norma: l.pace.status === "intarziat" ? Math.round(l.pace.lateMinutes) : 0,
+      minute_intarziere: l.pace.status === "intarziat" ? Math.round(l.pace.lateMinutes) : 0,
       termina_azi_pe_la: l.pace.dayDoneAt ? clockRo(l.pace.dayDoneAt) : null,
       comenzi_neincepute: l.pace.queueOrders,
     })),

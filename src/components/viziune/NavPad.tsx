@@ -7,13 +7,14 @@ import type { NavAction } from "@/lib/viziune/cameraNav";
  * On-screen camera pad for the 3D factory, plus a quick jump to any line. Keyboard does the same.
  * While walking (`onHold`), the arrows walk / turn for as long as they are held down.
  */
-export function NavPad({ onNav, onHome, lines, onLine, onHold, hideLines, className }: {
+export function NavPad({ onNav, onHome, lines, onLine, onHold, hideLines, className, bottom = 80 }: {
   onNav: (a: NavAction) => void; onHome: () => void;
   lines: { id: string; name: string; workers: number; late: boolean }[]; onLine: (id: string) => void;
   onHold?: (a: NavAction, down: boolean) => void;
   /** Phones show the line list in their own bottom bar. */
   hideLines?: boolean;
   className?: string;
+  bottom?: number;
 }) {
   const b = (a: NavAction, icon: React.ReactNode, title: string) => onHold ? (
     <Button size="icon" variant="secondary" className="h-11 w-11 touch-none select-none" title={title} aria-label={title}
@@ -23,7 +24,7 @@ export function NavPad({ onNav, onHome, lines, onLine, onHold, hideLines, classN
     <Button size="icon-xs" variant="secondary" className="h-7 w-7" title={title} aria-label={title} onClick={() => onNav(a)}>{icon}</Button>
   );
   return (
-    <div className={`absolute z-10 flex flex-col gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow ${className ?? "bottom-14 left-2"}`}>
+    <div style={{ bottom }} className={`absolute z-10 flex flex-col gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow ${className ?? "left-2"}`}>
       {!onHold && !hideLines && <Select value="" onValueChange={onLine}>
         <SelectTrigger className="h-7 w-40 text-[11px]"><SelectValue placeholder="Mergi la linia…" /></SelectTrigger>
         <SelectContent className="max-h-72 overflow-y-auto">

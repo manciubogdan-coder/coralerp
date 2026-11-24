@@ -15,7 +15,7 @@ export const minutesLabel = (min: number) => {
 const PACE: Record<LinePace["status"], { label: string; cls: string } | null> = {
   in_norma: { label: "în normă", cls: "bg-crm-green/15 text-crm-green" },
   aproape: { label: "aproape de normă", cls: "bg-crm-warning/15 text-crm-warning" },
-  intarziat: { label: "peste normă", cls: "bg-destructive text-destructive-foreground animate-pulse" },
+  intarziat: { label: "sub normă", cls: "bg-destructive text-destructive-foreground animate-pulse" },
   fara_norma: { label: "fără normă", cls: "bg-muted text-muted-foreground" },
   liber: null,
 };

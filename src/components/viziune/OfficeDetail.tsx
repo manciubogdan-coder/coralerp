@@ -61,12 +61,12 @@ function highlights(id: OfficeId, o: OfficeData, f: OfficeFacts): string[] {
     case "vanzari": return [doc("CC", "Comenzi clienți azi (toată firma)"), doc("FC", "Facturi clienți azi"), doc("AEC", "Avize expediție azi")];
     case "achizitii": return [doc("CF", "Comenzi furnizori azi (toată firma)"), doc("NIR", "NIR-uri azi"), `Prerecepții de descărcat: ${f.prereceptions}`];
     case "contabilitate": return [doc("FF", "Facturi furnizori azi"), `Documente Senior azi în toată firma: ${fmt([...o.docTotals.values()].reduce((a, x) => a + x.n, 0))}`];
-    case "productie": return [`Linii care lucrează: ${f.linesWorking} / ${f.linesTotal}`, `Producție azi: ${f.producedPct == null ? "—" : `${f.producedPct}%`}`, `Linii peste normă: ${f.lateLines}`];
+    case "productie": return [`Linii care lucrează: ${f.linesWorking} / ${f.linesTotal}`, `Producție azi: ${f.producedPct == null ? "—" : `${f.producedPct}%`}`, `Linii sub normă: ${f.lateLines}`];
     case "calitate": return [`Recepții azi: ${f.receptionLots} loturi · ${fmt(f.receptionKg)} kg`, `Prerecepții de verificat: ${f.prereceptions}`];
     case "depozit": return [`Recepții azi: ${f.receptionLots} loturi · ${fmt(f.receptionKg)} kg`, `Prerecepții de descărcat: ${f.prereceptions}`];
-    case "mentenanta": return [`Linii oprite acum: ${f.stoppedLines}`, `Linii peste normă: ${f.lateLines}`];
+    case "mentenanta": return [`Linii oprite acum: ${f.stoppedLines}`, `Linii sub normă: ${f.lateLines}`];
     case "hr": return [`Colegi care au lucrat azi: ${all.filter((p) => p.status !== "absent").length}`, `Lucrează acum: ${all.filter((p) => p.status === "aplicatie" || p.status === "senior").length}`];
-    case "ceo": return [`Lucrează acum în firmă: ${all.filter((p) => p.status === "aplicatie" || p.status === "senior").length} oameni`, `Documente Senior azi: ${fmt([...o.docTotals.values()].reduce((a, x) => a + x.n, 0))}`, `Producție azi: ${f.producedPct == null ? "—" : `${f.producedPct}%`} · ${f.lateLines} linii peste normă`];
+    case "ceo": return [`Lucrează acum în firmă: ${all.filter((p) => p.status === "aplicatie" || p.status === "senior").length} oameni`, `Documente Senior azi: ${fmt([...o.docTotals.values()].reduce((a, x) => a + x.n, 0))}`, `Producție azi: ${f.producedPct == null ? "—" : `${f.producedPct}%`} · ${f.lateLines} linii sub normă`];
   }
 }
 

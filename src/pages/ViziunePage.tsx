@@ -42,12 +42,12 @@ const ORDER_STATUS: Record<string, string> = { pending: "Neîncepută", assigned
 /** One live figure, as small as it can be and still readable from a distance. */
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="shrink-0 snap-start rounded-md border bg-card/95 px-2 py-0.5 shadow">
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
-        <span className="text-sm font-black tabular-nums leading-none">{value}</span>
+    <div className="shrink-0 snap-start rounded-md border bg-card/95 px-1.5 py-0.5 shadow">
+      <div className="flex items-baseline gap-1">
+        <span className="text-[9px] leading-3 uppercase text-muted-foreground">{label}</span>
+        <span className="text-xs font-black tabular-nums leading-none">{value}</span>
       </div>
-      {sub && <div className="text-[10px] leading-tight text-muted-foreground">{sub}</div>}
+      {sub && <div className="text-[9px] leading-[10px] text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -71,7 +71,7 @@ function LineDetail({ line }: { line: LineView }) {
             {line.norm > 0 && <><span className="text-muted-foreground">Ar trebui făcute până acum</span><span className="text-right font-semibold">~{fmt(p.expectedNow)}</span></>}
           </div>
         )}
-        {late && <div className="mt-1.5 font-bold text-destructive">⚠ Depășit cu {minutesLabel(p.lateMinutes)} față de normă și încă nu e închisă.</div>}
+        {late && <div className="mt-1.5 font-bold text-destructive">⚠ Sub normă · întârziere de {minutesLabel(p.lateMinutes)} și încă nu e închisă.</div>}
         {p.status === "aproape" && <div className="mt-1.5 font-semibold text-crm-warning">A folosit peste 90% din timpul normat.</div>}
         {p.otherDayOrders > 0 && <div className="mt-1.5 text-muted-foreground">+{p.otherDayOrders} comenzi în lucru planificate pe altă zi (nu intră în calcul).</div>}
         {p.forgotten.length > 0 && <div className="mt-1.5 font-semibold text-crm-warning">{p.forgotten.length} sesiuni lăsate deschise de peste 12 ore (cea mai veche din {new Date(Math.min(...p.forgotten.map((f) => Date.parse(f.ora_start || "")))).toLocaleDateString("ro-RO")}) — nu le-am socotit. Închide-le din Operator.</div>}
@@ -307,6 +307,17 @@ export default function ViziunePage() {
   // The HUD wraps to two rows on narrower screens, so the detail panel has to start
   // below the height the HUD actually has instead of a fixed offset.
   const hudRef = useRef<HTMLDivElement>(null);
+  const zoneBarRef = useRef<HTMLDivElement>(null);
+  const [zoneBarH, setZoneBarH] = useState(64);
+  useEffect(() => {
+    const el = zoneBarRef.current;
+    if (!el) return;
+    const read = () => setZoneBarH(el.getBoundingClientRect().height);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mobile, walking, touring]);
   const [hudH, setHudH] = useState(64);
   useEffect(() => {
     const el = hudRef.current;
@@ -353,15 +364,15 @@ export default function ViziunePage() {
         {!walking && !(sel && !editing) && <div className="pointer-events-auto -mx-2 flex snap-x gap-1.5 overflow-x-auto px-2 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
-        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
-          <div className={`rounded-md border px-2 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
-            <div className="flex items-baseline gap-1.5">
-              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</span>
-              <span className="text-sm font-black tabular-nums leading-none">{late.length ? `${late.length} linii` : "Nimic"}</span>
+        <Button variant="ghost" className="pointer-events-auto h-auto shrink-0 snap-start p-0 text-left hover:bg-transparent" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
+          <div className={`rounded-md border px-1.5 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
+            <div className="flex items-baseline gap-1">
+              <span className="flex items-center gap-1 text-[9px] leading-3 uppercase opacity-80"><AlertTriangle className="h-2.5 w-2.5" />Sub normă</span>
+              <span className="text-xs font-black tabular-nums leading-none">{late.length ? `${late.length} linii` : "Nimic"}</span>
             </div>
-            <div className="max-w-[220px] truncate text-[10px] leading-tight opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
+            <div className="max-w-[180px] truncate text-[9px] font-normal leading-[10px] opacity-80" title={late.map((l) => `${l.name} · întârziere ${minutesLabel(l.pace.lateMinutes)}`).join(" · ")}>{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
           </div>
-        </button>
+        </Button>
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
@@ -392,15 +403,15 @@ export default function ViziunePage() {
         {!walking && <>
         <Kpi label="Producție azi" value={pieces ? `${Math.round((produced / pieces) * 100)}%` : "—"} sub={`${fmt(produced)} / ${fmt(pieces)} buc`} />
         <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
-        <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
-          <div className={`rounded-md border px-2 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
-            <div className="flex items-baseline gap-1.5">
-              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</span>
-              <span className="text-sm font-black tabular-nums leading-none">{late.length ? `${late.length} linii` : "Nimic"}</span>
+        <Button variant="ghost" className="pointer-events-auto h-auto shrink-0 snap-start p-0 text-left hover:bg-transparent" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
+          <div className={`rounded-md border px-1.5 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
+            <div className="flex items-baseline gap-1">
+              <span className="flex items-center gap-1 text-[9px] leading-3 uppercase opacity-80"><AlertTriangle className="h-2.5 w-2.5" />Sub normă</span>
+              <span className="text-xs font-black tabular-nums leading-none">{late.length ? `${late.length} linii` : "Nimic"}</span>
             </div>
-            <div className="max-w-[220px] truncate text-[10px] leading-tight opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
+            <div className="max-w-[180px] truncate text-[9px] font-normal leading-[10px] opacity-80" title={late.map((l) => `${l.name} · întârziere ${minutesLabel(l.pace.lateMinutes)}`).join(" · ")}>{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
           </div>
-        </button>
+        </Button>
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
         <Kpi label="Recepții azi" value={`${fmt(recKg)} kg`} sub={`${data.receptions.length} furnizori`} />
         <Kpi label="Prerecepții de descărcat" value={`${(data.prereceptions ?? []).length} camioane`} sub={`${fmt((data.prereceptions ?? []).reduce((a, p) => a + p.kgLeft, 0))} kg${(data.prereceptions ?? []).some((p) => p.late) ? ` · ${(data.prereceptions ?? []).filter((p) => p.late).length} întârziate` : ""}`} />
@@ -412,7 +423,7 @@ export default function ViziunePage() {
       )}
 
       {!touring && (!mobile || walking || padOpen) && <NavPad onNav={nav} onHome={walking ? exitWalk : () => setZone("all")} onHold={walking ? holdPad : undefined}
-        hideLines={mobile} className={mobile ? (walking ? "bottom-3 left-2" : "bottom-16 left-2") : undefined}
+        hideLines={mobile} bottom={walking ? 24 : Math.max(80, zoneBarH + 24)}
         lines={data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => ({ id: l.id, name: l.name, workers: l.workers, late: l.pace.status === "intarziat" }))}
         onLine={(id) => select({ kind: "line", id })} />}
 
@@ -438,7 +449,7 @@ export default function ViziunePage() {
       </>}
 
       {/* zone camera buttons */}
-      {!walking && !touring && mobile && <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1 shadow">
+      {!walking && !touring && mobile && <div ref={zoneBarRef} className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1 shadow">
         <Select value={zone} onValueChange={(z) => setZone(z as Zone)}>
           <SelectTrigger className="h-8 min-w-0 flex-1 text-xs" aria-label="Zonă"><SelectValue /></SelectTrigger>
           <SelectContent className="max-h-72 overflow-y-auto">
@@ -453,7 +464,7 @@ export default function ViziunePage() {
         </Select>
         <Button size="icon" variant={padOpen ? "default" : "outline"} className="h-8 w-8 shrink-0" onClick={() => setPadOpen((v) => !v)} aria-label="Butoane de mișcare"><Gamepad2 className="h-4 w-4" /></Button>
       </div>}
-      {!walking && !touring && !mobile && <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 rounded-lg border bg-card/95 p-1 shadow">
+      {!walking && !touring && !mobile && <div ref={zoneBarRef} className="absolute bottom-2 left-2 right-2 z-10 flex flex-wrap gap-1 rounded-lg border bg-card/95 p-1 shadow">
         {(Object.keys(ZONES) as Zone[]).map((z) => (
           <Button key={z} size="xs" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
         ))}
