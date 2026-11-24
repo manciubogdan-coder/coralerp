@@ -62,8 +62,12 @@ const ActivityTrackingPage: React.FC = () => {
     }
   };
 
-  const fromIso = React.useMemo(() => new Date(`${from}T00:00:00`).toISOString(), [from]);
-  const toIso = React.useMemo(() => new Date(`${to}T23:59:59.999`).toISOString(), [to]);
+  const safeIso = (value: string, suffix: string, fallback: Date) => {
+    const d = value ? new Date(`${value}${suffix}`) : fallback;
+    return (Number.isNaN(d.getTime()) ? fallback : d).toISOString();
+  };
+  const fromIso = React.useMemo(() => safeIso(from, 'T00:00:00', new Date(Date.now() - 6 * 86400000)), [from]);
+  const toIso = React.useMemo(() => safeIso(to, 'T23:59:59.999', new Date()), [to]);
 
   const { data: rows = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['activity-pings', fromIso, toIso],

@@ -101,7 +101,11 @@ export default function CostStructure() {
   const changePeriod = (p: string) => { setPeriod(p); setAllPartners(null); setExcluded(new Set()); };
 
   const range = () => {
-    if (period === "custom") return { start: from, end: day(new Date(new Date(`${to}T00:00:00Z`).getTime() + 86400_000)) };
+    if (period === "custom") {
+      const toDate = to ? new Date(`${to}T00:00:00Z`) : new Date();
+      if (Number.isNaN(toDate.getTime())) return { start: from, end: day(new Date()) };
+      return { start: from, end: day(new Date(toDate.getTime() + 86400_000)) };
+    }
     const end = new Date(); end.setUTCDate(end.getUTCDate() + 1);
     if (period === "ytd") return { start: `${new Date().getUTCFullYear()}-01-01`, end: day(end) };
     const start = new Date(); start.setUTCMonth(start.getUTCMonth() - Number(period));
