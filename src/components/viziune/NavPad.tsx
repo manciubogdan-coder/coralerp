@@ -16,37 +16,37 @@ export function NavPad({ onNav, onHome, lines, onLine, onHold, hideLines, classN
   className?: string;
 }) {
   const b = (a: NavAction, icon: React.ReactNode, title: string) => onHold ? (
-    <Button size="icon" variant="secondary" className="h-12 w-12 touch-none select-none" title={title} aria-label={title}
+    <Button size="icon" variant="secondary" className="h-11 w-11 touch-none select-none" title={title} aria-label={title}
       onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); onHold(a, true); }}
       onPointerUp={() => onHold(a, false)} onPointerCancel={() => onHold(a, false)} onLostPointerCapture={() => onHold(a, false)}>{icon}</Button>
   ) : (
-    <Button size="icon" variant="secondary" className="h-9 w-9" title={title} aria-label={title} onClick={() => onNav(a)}>{icon}</Button>
+    <Button size="icon-xs" variant="secondary" className="h-7 w-7" title={title} aria-label={title} onClick={() => onNav(a)}>{icon}</Button>
   );
   return (
-    <div className={`absolute z-10 flex flex-col gap-2 rounded-lg border bg-card/95 p-2 shadow ${className ?? "bottom-16 left-3"}`}>
+    <div className={`absolute z-10 flex flex-col gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow ${className ?? "bottom-14 left-2"}`}>
       {!onHold && !hideLines && <Select value="" onValueChange={onLine}>
-        <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Mergi la linia…" /></SelectTrigger>
+        <SelectTrigger className="h-7 w-40 text-[11px]"><SelectValue placeholder="Mergi la linia…" /></SelectTrigger>
         <SelectContent className="max-h-72 overflow-y-auto">
           {lines.map((l) => <SelectItem key={l.id} value={l.id} className="text-xs">{l.late ? "⚠ " : ""}{l.name}{l.workers ? ` · 👷 ${l.workers}` : ""}</SelectItem>)}
         </SelectContent>
       </Select>}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <div className="grid grid-cols-3 gap-1">
-          {b("rotStanga", <RotateCcw className="h-4 w-4" />, onHold ? "Întoarce-te la stânga (Q sau ←)" : "Rotește spre stânga (Q)")}
-          {b("inainte", <ArrowUp className="h-4 w-4" />, "Înainte (↑ sau W)")}
-          {b("rotDreapta", <RotateCw className="h-4 w-4" />, onHold ? "Întoarce-te la dreapta (E sau →)" : "Rotește spre dreapta (E)")}
-          {b("stanga", <ArrowLeft className="h-4 w-4" />, onHold ? "Pas lateral stânga (A)" : "Stânga (← sau A)")}
-          <Button size="icon" variant="outline" className={onHold ? "h-12 w-12" : "h-9 w-9"} title={onHold ? "Ieși din plimbare" : "Toată fabrica"} aria-label={onHold ? "Ieși din plimbare" : "Toată fabrica"} onClick={onHome}>
-            {onHold ? <LogOut className="h-4 w-4" /> : <Home className="h-4 w-4" />}
+          {b("rotStanga", <RotateCcw className="h-3.5 w-3.5" />, onHold ? "Întoarce-te la stânga (Q sau ←)" : "Rotește spre stânga (Q)")}
+          {b("inainte", <ArrowUp className="h-3.5 w-3.5" />, "Înainte (↑ sau W)")}
+          {b("rotDreapta", <RotateCw className="h-3.5 w-3.5" />, onHold ? "Întoarce-te la dreapta (E sau →)" : "Rotește spre dreapta (E)")}
+          {b("stanga", <ArrowLeft className="h-3.5 w-3.5" />, onHold ? "Pas lateral stânga (A)" : "Stânga (← sau A)")}
+          <Button size="icon-xs" variant="outline" className={onHold ? "h-11 w-11" : "h-7 w-7"} title={onHold ? "Ieși din plimbare" : "Toată fabrica"} aria-label={onHold ? "Ieși din plimbare" : "Toată fabrica"} onClick={onHome}>
+            {onHold ? <LogOut className="h-3.5 w-3.5" /> : <Home className="h-3.5 w-3.5" />}
           </Button>
-          {b("dreapta", <ArrowRight className="h-4 w-4" />, onHold ? "Pas lateral dreapta (D)" : "Dreapta (→ sau D)")}
+          {b("dreapta", <ArrowRight className="h-3.5 w-3.5" />, onHold ? "Pas lateral dreapta (D)" : "Dreapta (→ sau D)")}
           <span />
-          {b("inapoi", <ArrowDown className="h-4 w-4" />, "Înapoi (↓ sau S)")}
+          {b("inapoi", <ArrowDown className="h-3.5 w-3.5" />, "Înapoi (↓ sau S)")}
           <span />
         </div>
         {!onHold && <div className="flex flex-col gap-1">
-          {b("aproape", <ZoomIn className="h-4 w-4" />, "Mai aproape (+)")}
-          {b("departe", <ZoomOut className="h-4 w-4" />, "Mai departe (−)")}
+          {b("aproape", <ZoomIn className="h-3.5 w-3.5" />, "Mai aproape (+)")}
+          {b("departe", <ZoomOut className="h-3.5 w-3.5" />, "Mai departe (−)")}
         </div>}
       </div>
     </div>

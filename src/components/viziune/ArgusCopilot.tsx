@@ -210,9 +210,9 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} aria-label="Vorbește cu Argus"
-        className={`group absolute z-20 flex items-center gap-2 rounded-full border bg-primary px-4 py-3 font-bold text-primary-foreground shadow-2xl transition hover:scale-105 ${mobile ? "bottom-16 right-2" : "bottom-24 right-3"}`}>
-        <span className="relative flex h-3 w-3"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-foreground opacity-60" /><span className="relative inline-flex h-3 w-3 rounded-full bg-primary-foreground" /></span>
-        <Sparkles className="h-4 w-4" />Întreabă-l pe Argus
+        className={`group absolute z-20 flex items-center gap-1.5 rounded-full border bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground shadow-2xl transition hover:scale-105 ${mobile ? "bottom-14 right-2" : "bottom-14 right-2"}`}>
+        <span className="relative flex h-2.5 w-2.5"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary-foreground opacity-60" /><span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary-foreground" /></span>
+        <Sparkles className="h-3.5 w-3.5" />Întreabă-l pe Argus
       </button>
     );
   }
@@ -220,30 +220,30 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
   const last = [...turns].reverse().find((t) => t.role === "assistant" && t.target);
   return (
     <div className={mobile
-      ? "absolute inset-x-0 bottom-0 z-30 flex max-h-[75%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
-      : "absolute bottom-24 right-3 z-30 flex max-h-[min(70%,640px)] w-[min(92vw,420px)] flex-col rounded-2xl border bg-card/95 shadow-2xl backdrop-blur-md"}>
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <div className={`flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground ${busy ? "animate-pulse" : ""}`}><Sparkles className="h-4 w-4" /></div>
+      ? "absolute inset-x-0 bottom-0 z-30 flex max-h-[62%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
+      : "absolute bottom-14 right-2 z-30 flex max-h-[min(58%,440px)] w-[min(88vw,330px)] flex-col rounded-xl border bg-card/95 shadow-2xl backdrop-blur-md"}>
+      <div className="flex items-center gap-1.5 border-b px-2 py-1">
+        <div className={`flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground ${busy ? "animate-pulse" : ""}`}><Sparkles className="h-3.5 w-3.5" /></div>
         <div className="min-w-0 flex-1">
-          <div className="font-black leading-tight">Argus</div>
-          <div className="truncate text-[11px] text-muted-foreground">
+          <div className="text-sm font-black leading-tight">Argus</div>
+          <div className="truncate text-[10px] text-muted-foreground">
             {busy === "asculta" ? "Te ascult… apasă din nou când ai terminat" : busy === "gandeste" ? "Se uită prin fabrică…" : busy === "vorbeste" ? "Vorbește…" : "Întreabă orice despre fabrica de azi"}
           </div>
         </div>
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setVoice(!voice)} aria-label={voice ? "Oprește vocea" : "Pornește vocea"} title={voice ? "Argus răspunde cu voce" : "Argus răspunde doar în scris"}>
-          {voice ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+        <Button size="icon-xs" variant="ghost" onClick={() => setVoice(!voice)} aria-label={voice ? "Oprește vocea" : "Pornește vocea"} title={voice ? "Argus răspunde cu voce" : "Argus răspunde doar în scris"}>
+          {voice ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
         </Button>
-        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { stopAudio(); setOpen(false); }} aria-label="Închide Argus"><X className="h-4 w-4" /></Button>
+        <Button size="icon-xs" variant="ghost" onClick={() => { stopAudio(); setOpen(false); }} aria-label="Închide Argus"><X className="h-3.5 w-3.5" /></Button>
       </div>
 
-      <div ref={list} className="flex-1 space-y-2 overflow-y-auto p-3 text-sm">
-        {turns.length === 0 && <p className="text-xs text-muted-foreground">Apasă pe microfon (sau tasta <b>M</b>) și vorbește, ori alege o întrebare. Argus răspunde din cifrele live de pe ecran și duce camera acolo unde e răspunsul.</p>}
+      <div ref={list} className="flex-1 space-y-1.5 overflow-y-auto p-2 text-xs">
+        {turns.length === 0 && <p className="text-[10px] text-muted-foreground">Apasă pe microfon (sau tasta <b>M</b>) și vorbește, ori alege o întrebare. Argus răspunde din cifrele live de pe ecran și duce camera acolo unde e răspunsul.</p>}
         {turns.map((t, i) => (
-          <div key={i} className={t.role === "user" ? "ml-8 rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-primary-foreground" : `mr-6 rounded-2xl rounded-bl-sm border px-3 py-2 ${t.error ? "border-destructive text-destructive" : "bg-muted/50"}`}>
+          <div key={i} className={t.role === "user" ? "ml-6 rounded-xl rounded-br-sm bg-primary px-2 py-1.5 text-primary-foreground" : `mr-4 rounded-xl rounded-bl-sm border px-2 py-1.5 ${t.error ? "border-destructive text-destructive" : "bg-muted/50"}`}>
             {t.text}
           </div>
         ))}
-        {busy === "gandeste" && <div className="mr-6 flex items-center gap-2 rounded-2xl border bg-muted/50 px-3 py-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Argus se uită prin fabrică…</div>}
+        {busy === "gandeste" && <div className="mr-4 flex items-center gap-2 rounded-xl border bg-muted/50 px-2 py-1.5 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Argus se uită prin fabrică…</div>}
         {busy === "vorbeste" && (
           <div className="flex items-end gap-0.5 px-1" aria-hidden>
             {[0, 1, 2, 3, 4, 5, 6].map((i) => <span key={i} className="w-1 animate-pulse rounded-full bg-primary" style={{ height: `${8 + ((i * 7) % 14)}px`, animationDelay: `${i * 120}ms` }} />)}
@@ -252,19 +252,19 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
         )}
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {QUICK.map((q) => <button key={q} type="button" disabled={busy === "gandeste"} onClick={() => ask({ question: q })} className="shrink-0 rounded-full border bg-background px-3 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50">{q}</button>)}
+      <div className="flex gap-1 overflow-x-auto px-2 pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {QUICK.map((q) => <button key={q} type="button" disabled={busy === "gandeste"} onClick={() => ask({ question: q })} className="shrink-0 rounded-full border bg-background px-2 py-0.5 text-[10px] font-medium hover:bg-muted disabled:opacity-50">{q}</button>)}
       </div>
-      {last?.target && <div className="px-3 pb-2"><Button size="sm" variant="outline" className="h-7 w-full text-xs" onClick={() => { onDetails(last.target!); setOpen(false); }}>Vezi detaliile pe ecran</Button></div>}
+      {last?.target && <div className="px-2 pb-1.5"><Button size="sm" variant="outline" className="h-6 w-full text-[10px]" onClick={() => { onDetails(last.target!); setOpen(false); }}>Vezi detaliile pe ecran</Button></div>}
 
-      <div className="flex items-center gap-2 border-t p-2">
+      <div className="flex items-center gap-1.5 border-t p-1.5">
         {canRecord && (
-          <Button size="icon" className={`h-11 w-11 shrink-0 rounded-full ${busy === "asculta" ? "animate-pulse bg-destructive text-destructive-foreground hover:bg-destructive" : ""}`} onClick={toggleMic} disabled={busy === "gandeste"} aria-label={busy === "asculta" ? "Trimite întrebarea" : "Vorbește"}>
-            {busy === "asculta" ? <Square className="h-4 w-4" /> : <Mic className="h-5 w-5" />}
+          <Button size="icon" className={`h-9 w-9 shrink-0 rounded-full ${busy === "asculta" ? "animate-pulse bg-destructive text-destructive-foreground hover:bg-destructive" : ""}`} onClick={toggleMic} disabled={busy === "gandeste"} aria-label={busy === "asculta" ? "Trimite întrebarea" : "Vorbește"}>
+            {busy === "asculta" ? <Square className="h-3.5 w-3.5" /> : <Mic className="h-4 w-4" />}
           </Button>
         )}
-        <Input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="Scrie o întrebare…" className="h-11" disabled={busy === "asculta"} />
-        <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0" onClick={submit} disabled={!text.trim() || busy === "gandeste"} aria-label="Trimite"><Send className="h-4 w-4" /></Button>
+        <Input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="Scrie o întrebare…" className="h-8 text-xs" disabled={busy === "asculta"} />
+        <Button size="icon-xs" variant="ghost" className="h-8 w-8 shrink-0" onClick={submit} disabled={!text.trim() || busy === "gandeste"} aria-label="Trimite"><Send className="h-3.5 w-3.5" /></Button>
       </div>
     </div>
   );

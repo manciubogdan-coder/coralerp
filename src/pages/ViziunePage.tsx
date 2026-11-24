@@ -39,12 +39,15 @@ const fmt = (n: number) => Math.round(n).toLocaleString("ro-RO");
 const STATUS_LABEL: Record<string, string> = { lucreaza: "Lucrează", asteapta: "În așteptare", terminat: "Gata pe azi", oprita: "Oprită" };
 const ORDER_STATUS: Record<string, string> = { pending: "Neîncepută", assigned: "Pe linie", in_progress: "În lucru", partial: "Parțial", completed: "Gata" };
 
+/** One live figure, as small as it can be and still readable from a distance. */
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="shrink-0 snap-start rounded-lg border bg-card/95 px-3 py-2 shadow">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="text-lg font-black tabular-nums leading-tight">{value}</div>
-      {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
+    <div className="shrink-0 snap-start rounded-md border bg-card/95 px-2 py-0.5 shadow">
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-sm font-black tabular-nums leading-none">{value}</span>
+      </div>
+      {sub && <div className="text-[10px] leading-tight text-muted-foreground">{sub}</div>}
     </div>
   );
 }
@@ -300,6 +303,20 @@ export default function ViziunePage() {
   const depot = sel?.kind === "depozit" ? depotDetail(data.stockRows, pallets.data, data.today) : [];
   const picking = sel?.kind === "livrare" ? pickingDetail(data.orders, pallets.data) : [];
 
+  // The HUD wraps to two rows on narrower screens, so the detail panel has to start
+  // below the height the HUD actually has instead of a fixed offset.
+  const hudRef = useRef<HTMLDivElement>(null);
+  const [hudH, setHudH] = useState(64);
+  useEffect(() => {
+    const el = hudRef.current;
+    if (!el) return;
+    const read = () => setHudH(el.getBoundingClientRect().height);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [mobile, touring]);
+
   return (
     <div className="relative h-[calc(100dvh-4rem)] w-full overflow-hidden bg-background" data-scene-ready={ready ? "" : undefined}>
       {/* top HUD */}
@@ -339,10 +356,12 @@ export default function ViziunePage() {
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
         <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
-          <div className={`rounded-lg border px-3 py-2 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
-            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</div>
-            <div className="text-lg font-black tabular-nums leading-tight">{late.length ? `${late.length} linii` : "Nimic"}</div>
-            <div className="max-w-[220px] truncate text-[10px] opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
+          <div className={`rounded-md border px-2 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
+            <div className="flex items-baseline gap-1.5">
+              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</span>
+              <span className="text-sm font-black tabular-nums leading-none">{late.length ? `${late.length} linii` : "Nimic"}</span>
+            </div>
+            <div className="max-w-[220px] truncate text-[10px] leading-tight opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
           </div>
         </button>
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
@@ -357,26 +376,26 @@ export default function ViziunePage() {
         </div>}
       </div>
       ) : (
-      <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-start gap-2">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-lg border bg-card/95 px-3 py-2 shadow">
-          <BackToHubButton />
+      <div ref={hudRef} className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-wrap items-start gap-1.5">
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-lg border bg-card/95 px-2 py-1 shadow">
+          <BackToHubButton size="xs" />
           <div>
-            <h1 className="text-base font-black leading-tight">Viziune · Fabrica Coral live</h1>
-            <p className="text-[10px] text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · se reîmprospătează la 30 s</p>
+            <h1 className="text-sm font-black leading-tight">Viziune · Fabrica Coral live</h1>
+            <p className="text-[10px] leading-tight text-muted-foreground">{data.today} · actualizat {data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }) : "…"} · se reîmprospătează la 30 s</p>
           </div>
-          <Button size="icon" variant="ghost" onClick={() => { data.refetch(); offices.refetch(); }} title="Reîmprospătează"><RefreshCw className="h-4 w-4" /></Button>
-          <Button size="sm" disabled={editing} onClick={startTour} title="Zbor cinematic automat prin fabrică, cu cifrele de azi (tasta P). Orice clic în scenă îl oprește.">
-            <Clapperboard className="mr-1 h-4 w-4" />Tur prezentare
+          <Button size="icon-xs" variant="ghost" onClick={() => { data.refetch(); offices.refetch(); }} title="Reîmprospătează"><RefreshCw className="h-3.5 w-3.5" /></Button>
+          <Button size="xs" disabled={editing} onClick={startTour} title="Zbor cinematic automat prin fabrică, cu cifrele de azi (tasta P). Orice clic în scenă îl oprește.">
+            <Clapperboard className="h-3.5 w-3.5" />Tur prezentare
           </Button>
-          <Button size="sm" variant={editing ? "default" : "outline"} disabled={editing || data.layoutLoading} onClick={() => startEdit()} title="Mută, adaugă sau scoate utilaje și alege ce linie lucrează pe fiecare">
-            <LayoutGrid className="mr-1 h-4 w-4" />Aranjează hala
+          <Button size="xs" variant={editing ? "default" : "outline"} disabled={editing || data.layoutLoading} onClick={() => startEdit()} title="Mută, adaugă sau scoate utilaje și alege ce linie lucrează pe fiecare">
+            <LayoutGrid className="h-3.5 w-3.5" />Aranjează hala
           </Button>
           {walking
-            ? <Button size="sm" onClick={exitWalk} title="Înapoi la vederea de sus (Esc)"><LogOut className="mr-1 h-4 w-4" />Ieși din plimbare</Button>
-            : <Button size="sm" variant="outline" disabled={editing} onClick={startWalk} title="Mergi prin fabrică la înălțimea ochilor, ca într-un joc"><Footprints className="mr-1 h-4 w-4" />Plimbă-te prin hală</Button>}
-          <Button size="sm" variant={quality === "inalta" ? "secondary" : "ghost"} onClick={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}
+            ? <Button size="xs" onClick={exitWalk} title="Înapoi la vederea de sus (Esc)"><LogOut className="h-3.5 w-3.5" />Ieși din plimbare</Button>
+            : <Button size="xs" variant="outline" disabled={editing} onClick={startWalk} title="Mergi prin fabrică la înălțimea ochilor, ca într-un joc"><Footprints className="h-3.5 w-3.5" />Plimbă-te prin hală</Button>}
+          <Button size="xs" variant={quality === "inalta" ? "secondary" : "ghost"} onClick={() => setQuality(quality === "inalta" ? "rapida" : "inalta")}
             title={quality === "inalta" ? "Grafică frumoasă (umbre fine, lumini care strălucesc). Apasă pentru modul rapid, pe calculatoare mai slabe." : "Grafică rapidă. Apasă pentru grafica frumoasă."}>
-            <Sparkles className="mr-1 h-4 w-4" />{quality === "inalta" ? "Grafică frumoasă" : "Grafică rapidă"}
+            <Sparkles className="h-3.5 w-3.5" />{quality === "inalta" ? "Grafică frumoasă" : "Grafică rapidă"}
           </Button>
         </div>
         <LiveBadge updatedAt={data.updatedAt} className="pointer-events-auto self-center" />
@@ -385,10 +404,12 @@ export default function ViziunePage() {
         <Kpi label="Linii care lucrează" value={`${working.length} / ${data.lineViews.length}`} sub={`${people} oameni pe linii`} />
         <Kpi label="Ziua se termină" value={summary.dayDoneAt ? `~${clockRo(summary.dayDoneAt)}` : "—"} sub={summary.dayDoneAt ? "după normă, la ritmul de acum" : "fără comenzi rămase cu normă"} />
         <button type="button" className="pointer-events-auto shrink-0 snap-start text-left" onClick={() => late[0] && select({ kind: "line", id: late[0].id })}>
-          <div className={`rounded-lg border px-3 py-2 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
-            <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</div>
-            <div className="text-lg font-black tabular-nums leading-tight">{late.length ? `${late.length} linii` : "Nimic"}</div>
-            <div className="max-w-[220px] truncate text-[10px] opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
+          <div className={`rounded-md border px-2 py-0.5 shadow ${late.length ? "border-destructive bg-destructive text-destructive-foreground" : "bg-card/95"}`}>
+            <div className="flex items-baseline gap-1.5">
+              <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide opacity-80"><AlertTriangle className="h-3 w-3" />Peste normă</span>
+              <span className="text-sm font-black tabular-nums leading-none">{late.length ? `${late.length} linii` : "Nimic"}</span>
+            </div>
+            <div className="max-w-[220px] truncate text-[10px] leading-tight opacity-80">{late.length ? late.map((l) => `${l.name} +${minutesLabel(l.pace.lateMinutes)}`).join(" · ") : "toate comenzile în lucru sunt în timp"}</div>
           </div>
         </button>
         <Kpi label="Comenzi azi" value={fmt(real.length)} sub={`${real.filter((o) => o.status === "completed").length} gata · ${data.unassigned.length} fără linie`} />
@@ -431,30 +452,30 @@ export default function ViziunePage() {
       </>}
 
       {/* zone camera buttons */}
-      {!walking && !touring && mobile && <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+      {!walking && !touring && mobile && <div className="absolute inset-x-2 bottom-2 z-10 flex items-center gap-1.5 rounded-lg border bg-card/95 p-1 shadow">
         <Select value={zone} onValueChange={(z) => setZone(z as Zone)}>
-          <SelectTrigger className="h-9 min-w-0 flex-1 text-xs" aria-label="Zonă"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-8 min-w-0 flex-1 text-xs" aria-label="Zonă"><SelectValue /></SelectTrigger>
           <SelectContent className="max-h-72 overflow-y-auto">
             {(Object.keys(ZONES) as Zone[]).map((z) => <SelectItem key={z} value={z} className="text-xs">{ZONES[z].label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value="" onValueChange={(id) => select({ kind: "line", id })}>
-          <SelectTrigger className="h-9 min-w-0 flex-1 text-xs" aria-label="Mergi la linia"><SelectValue placeholder="Linia…" /></SelectTrigger>
+          <SelectTrigger className="h-8 min-w-0 flex-1 text-xs" aria-label="Mergi la linia"><SelectValue placeholder="Linia…" /></SelectTrigger>
           <SelectContent className="max-h-72 overflow-y-auto">
             {data.lineViews.filter((l) => stationOfLine(l.id)).map((l) => <SelectItem key={l.id} value={l.id} className="text-xs">{l.pace.status === "intarziat" ? "⚠ " : ""}{l.name}{l.workers ? ` · 👷 ${l.workers}` : ""}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button size="icon" variant={padOpen ? "default" : "outline"} className="h-9 w-9 shrink-0" onClick={() => setPadOpen((v) => !v)} aria-label="Butoane de mișcare"><Gamepad2 className="h-4 w-4" /></Button>
+        <Button size="icon" variant={padOpen ? "default" : "outline"} className="h-8 w-8 shrink-0" onClick={() => setPadOpen((v) => !v)} aria-label="Butoane de mișcare"><Gamepad2 className="h-4 w-4" /></Button>
       </div>}
-      {!walking && !touring && !mobile && <div className="absolute bottom-3 left-3 z-10 flex flex-wrap gap-1.5 rounded-lg border bg-card/95 p-1.5 shadow">
+      {!walking && !touring && !mobile && <div className="absolute bottom-2 left-2 z-10 flex flex-wrap gap-1 rounded-lg border bg-card/95 p-1 shadow">
         {(Object.keys(ZONES) as Zone[]).map((z) => (
-          <Button key={z} size="sm" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
+          <Button key={z} size="xs" variant={zone === z ? "default" : "ghost"} onClick={() => setZone(z)}>{ZONES[z].label}</Button>
         ))}
       </div>}
 
       {/* legend */}
-      <div className={`absolute bottom-3 right-3 z-10 hidden rounded-lg border bg-card/95 px-3 py-2 text-[10px] shadow ${walking || touring || copilotOpen ? "" : "md:block"}`}>
-        <div className="mb-1 font-semibold">Lumina de pe linie</div>
+      <div className={`absolute bottom-2 right-2 z-10 hidden rounded-md border bg-card/95 px-2 py-1 text-[9px] shadow ${walking || touring || copilotOpen ? "" : "md:block"}`}>
+        <div className="mb-0.5 font-semibold">Lumina de pe linie</div>
         <div className="flex gap-3"><span>🟢 lucrează</span><span>🟡 așteaptă</span><span>🔵 gata</span><span>⚪ oprită</span><span className="font-bold text-destructive">🔴 ⚠ peste normă</span></div>
         <div className="mt-1 flex gap-3"><span className="font-semibold text-crm-cool">━ materie primă</span><span className="font-semibold text-crm-green">━ produs finit</span><span className="font-semibold text-crm-warning">━ graniță igienă</span></div>
         <div className="mt-1 text-muted-foreground">Trage = rotire · rotiță = zoom · clic dreapta = mutare · clic pe linie/zonă = detalii</div>
@@ -470,12 +491,13 @@ export default function ViziunePage() {
 
       {sel && !editing && !touring && (
         <div className={mobile
-          ? "absolute inset-x-0 bottom-0 z-20 flex max-h-[72%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
-          : `absolute right-3 top-28 z-20 flex max-h-[calc(100%-10rem)] flex-col rounded-xl border bg-card shadow-xl ${isStore ? "w-[min(94vw,560px)]" : "w-[min(92vw,380px)]"}`}>
+          ? "absolute inset-x-0 bottom-0 z-20 flex max-h-[62%] flex-col rounded-t-2xl border-t bg-card shadow-2xl"
+          : `absolute right-2 z-20 flex flex-col rounded-lg border bg-card shadow-xl ${isStore ? "w-[min(92vw,460px)]" : "w-[min(88vw,320px)]"}`}
+          style={mobile ? undefined : { top: hudH + 8, maxHeight: `calc(100% - ${hudH + 16}px)` }}>
           {mobile && <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-muted-foreground/30" />}
-          <div className="flex items-start justify-between gap-2 border-b p-3">
+          <div className="flex items-start justify-between gap-2 border-b p-2">
             <div>
-              <div className="text-base font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "office" ? OFFICES[sel.id].label : sel.kind === "birouri" ? "Birourile firmei azi" : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
+              <div className="text-sm font-black">{line ? line.name : emptyStation ? emptyStation.label : sel.kind === "office" ? OFFICES[sel.id].label : sel.kind === "birouri" ? "Birourile firmei azi" : sel.kind === "receptie" ? "Recepție azi" : sel.kind === "depozit" ? "Depozit materie primă" : "Gata de livrare"}</div>
               {line && <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><Badge variant="secondary">{STATUS_LABEL[line.status]}</Badge><PaceBadge pace={line.pace} />{line.operator && <span>{line.operator} · {line.workers} oameni</span>}</div>}
             </div>
             <Button size="icon" variant="ghost" onClick={() => setSel(null)}><X className="h-4 w-4" /></Button>
