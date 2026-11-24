@@ -51,8 +51,9 @@ export const DEFAULT_PRICE_RULES: PriceRules = {
   ],
   palletGroups: [
     { label: "Radicchio", keywords: ["radic", "radich"], kgPerPallet: 500 },
-    { label: "Căpățâni", keywords: ["iceberg", "pan di", "indivi", "scarola", "varz"], kgPerPallet: 400 },
-    { label: "Frunze / aromate", keywords: ["spanac", "rucola", "valerian", "latuga", "salat", "baby", "mizuna", "tsatsoi", "blood", "chard", "busuioc", "marar", "patrunjel", "menta", "cimbru", "coriandru", "rozmarin", "oregano", "tarhon", "chivas"], kgPerPallet: 220 },
+    { label: "Căpățâni", keywords: ["iceberg", "pan di", "pdz", "pzd", "indivi", "scarola", "varz"], kgPerPallet: 400 },
+    { label: "Aromate", keywords: ["busuioc", "marar", "patrunjel", "menta", "cimbru", "coriandru", "rozmarin", "oregano", "tarhon", "chivas", "leustean", "salvie", "arpagic"], kgPerPallet: 200 },
+    { label: "Baby leaf / frunze", keywords: ["spanac", "rucola", "valerian", "latuga", "salat", "baby", "mizuna", "tsatsoi", "blood", "chard"], kgPerPallet: 220 },
   ],
   tradedGoods: [
     { label: "Bio Baby Spanac", keywords: ["spanac", "bio"], piecesPerPallet: 1000, note: "Bio Baby Spanac: semifabricat din Italia, revândut ca atare, 1000 buc/palet" },

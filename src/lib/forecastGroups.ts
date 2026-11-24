@@ -50,13 +50,15 @@ export const orderByDay = (deliveryDay: string, leadTimeDays: number): string =>
   return d.toISOString().slice(0, 10);
 };
 
-/** Kg pe un palet: căpățâni 400, radicchio 500, frunze și aromate 220; altele necunoscut. */
+/** Kg pe un palet (Bogdan, 24.11.2026): radicchio rosso 500; iceberg, indivia riccia, scarola, PDZ 400; baby leaf/salate 220; aromate 200. */
+const HEAD_KEYS = ["capatan", "iceberg", "pandi", "pdz", "pzd", "indivi", "scarola", "varz"];
 export const palletKgFor = (name: string): number | null => {
   const n = norm(name);
   if (n.includes("radic")) return 500;
-  if (n.includes("capatan")) return 400;
+  if (HEAD_KEYS.some((k) => n.includes(k))) return 400;
   const g = forecastGroupOf(name);
-  if (g === "Aromate" || g === "Salate") return 220;
+  if (g === "Aromate") return 200;
+  if (g === "Salate") return 220;
   return null;
 };
 

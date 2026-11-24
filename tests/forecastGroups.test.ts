@@ -57,7 +57,7 @@ _t("kg pe palet", () => {
   _e(_pk("Capatani salata verde")).toBe(400);
   _e(_pk("Radicchio rosu")).toBe(500);
   _e(_pk("Baby spanac bio")).toBe(220);
-  _e(_pk("Busuioc")).toBe(220);
+  _e(_pk("Busuioc")).toBe(200);
 });
 
 describe("packaging weekly order plan", () => {
@@ -72,4 +72,15 @@ describe("packaging weekly order plan", () => {
     expect(orderByDay("2026-11-23", 14)).toBe("2026-11-09");
     expect(orderByDay("2026-12-01", 7)).toBe("2026-11-24");
   });
+});
+
+import { palletKgFor as kgPal } from "../src/lib/forecastGroups";
+describe("kg pe palet", () => {
+  it("aromate 200", () => expect(kgPal("BUSUIOC VRAC")).toBe(200));
+  it("baby leaf 220", () => expect(kgPal("RUCOLA VRAC")).toBe(220));
+  it("indivia riccia 400", () => expect(kgPal("INDIVIA RICCIA VRAC")).toBe(400));
+  it("scarola 400", () => expect(kgPal("SCAROLA VRAC")).toBe(400));
+  it("pzd 400", () => expect(kgPal("PAN DI ZUCHERO VRAC")).toBe(400));
+  it("radicchio 500", () => expect(kgPal("RADICCHIO ROSSO")).toBe(500));
+  it("iceberg 400", () => expect(kgPal("ICEBERG VRAC")).toBe(400));
 });
