@@ -46,6 +46,7 @@ import { uploadAttachment, attachmentDownload, expandAttachments, deleteThreadAt
 import { validChatMessages, readChatHistory, repairChatMessageIds, isEmptyAssistant, markFailedTurn } from "./chatHistory.ts";
 import { rollingContext } from "./context.ts";
 import { radarSettings, saveRadarSettings, radarSnapshot } from "./radar.ts";
+import { supplierPriceList, saveSupplierPriceList, supplierPriceAudit } from "./supplierPrices.ts";
 import { compactData, attachmentManifest, messageText } from "./contextRules.ts";
 import {
   LEGACY_ANON,
@@ -637,6 +638,20 @@ Deno.serve(async (req) => {
       case 'viziune_offices_save': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         try { return json(await saveOfficeConfig(c, await req.json(), auth.user.email ?? userId)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'supplier_prices': {
+        try { return json(await supplierPriceList(c.cloud)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'supplier_prices_save': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await saveSupplierPriceList(c.cloud, await req.json(), auth.user.email ?? userId)); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'supplier_price_audit': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await supplierPriceAudit(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'radar_settings': {

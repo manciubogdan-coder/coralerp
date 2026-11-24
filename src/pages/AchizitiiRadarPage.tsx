@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { argusFetch } from '@/lib/argusApi';
 import { useAuth } from '@/contexts/AuthContext';
 import BackToHubButton from '@/components/BackToHubButton';
+import SupplierPriceAudit from '@/components/achizitii/SupplierPriceAudit';
 import ClientOrdersForecast from '@/components/forecast/ClientOrdersForecast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,7 @@ const isIssue = (l: RadarLine) => l.status !== 'ok' || (l.premature && !l.review
 const worstPhase = (lines: RadarLine[]): Phase => lines.some((l) => l.phase === 'inchis') ? 'inchis' : lines.some((l) => l.phase === 'azi') ? 'azi' : 'viitor';
 const stockCell = (v: number | null, unit: string) => v === null ? '—' : v < 0 ? <span className="text-destructive">{fmt(v)} {unit}</span> : `${fmt(v)} ${unit}`;
 
-const AchizitiiRadarPage: React.FC = () => {
+const RadarView: React.FC = () => {
   const { isAdmin } = useAuth();
   const [type, setType] = useState<InvType>('materii-prime');
   const [rows, setRows] = useState<RadarRow[]>([]);
@@ -319,6 +320,23 @@ const AchizitiiRadarPage: React.FC = () => {
       </>}
 
       <div className="hidden" aria-hidden><HiddenForecast key={`${type}-${tick}`} inventoryType={type} onRows={onRows} /></div>
+    </div>
+  );
+};
+
+const AchizitiiRadarPage: React.FC = () => {
+  const [view, setView] = useState<'radar' | 'preturi'>('radar');
+  return (
+    <div>
+      <div className="container mx-auto px-2 md:px-6 pt-3 md:pt-6">
+        <Tabs value={view} onValueChange={(v) => setView(v as 'radar' | 'preturi')}>
+          <TabsList><TabsTrigger value="radar">Radar livrări</TabsTrigger><TabsTrigger value="preturi">Furnizori și prețuri</TabsTrigger></TabsList>
+        </Tabs>
+      </div>
+      {view === 'radar' ? <RadarView /> : <div className="container mx-auto px-2 md:px-6 py-3 space-y-3">
+        <div><h1 className="text-2xl font-bold">Furnizori și prețuri</h1><p className="text-muted-foreground text-sm">Am cumpărat de la cel mai ieftin furnizor? Au respectat furnizorii prețul convenit? Cât m-a costat în plus, pe fiecare ingredient și factură.</p></div>
+        <SupplierPriceAudit />
+      </div>}
     </div>
   );
 };

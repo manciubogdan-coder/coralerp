@@ -18,7 +18,7 @@ export function alertVisible(alert: {status:string;snoozed_until?:string|null}, 
 export function orderFrequency(dates:string[],fallback:number):number {const unique=[...new Set(dates.map(d=>d.slice(0,10)))].sort();return unique.length>1?(Date.parse(unique[unique.length-1])-Date.parse(unique[0]))/86400000/(unique.length-1):fallback;}
 
 /** Purchasing radar reads open to the Achiziții team; changing the radar rules stays admin-only. */
-export const PURCHASING_RADAR_ACTIONS = new Set(["radar_settings", "radar_snapshot"]);
+export const PURCHASING_RADAR_ACTIONS = new Set(["radar_settings", "radar_snapshot", "supplier_prices", "supplier_price_audit"]);
 export function canUsePurchasingRadar(approved: boolean, roles: string[]): boolean {
   return approved && roles.some(role => role === 'admin' || role === 'achizitii');
 }
