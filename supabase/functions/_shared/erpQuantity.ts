@@ -1,9 +1,9 @@
 /**
  * Decide cantitatea planificată a unei linii de comandă importată din Senior ERP.
  *
- * Regula: „Acceptat" (Cantitate_Disponibila) are prioritate; dacă lipsește sau e 0,
- * folosim cantitatea comandată. La reimport, orice schimbare a acestor câmpuri în
- * Senior se propagă prin comparația cu cantitatea stocată (făcută de apelant).
+ * Regula: numai „Acceptat" (Cantitate_Disponibila) definește planul.
+ * Lipsă, zero sau invalid = fără cerere de produs, niciodată cantitatea comandată.
+ * La fiecare reimport acceptata se compară cu planul stocat (de apelant).
  *
  * Notă: dacă în Senior se modifică doar „Cantitate" dar „Acceptat" rămâne completat
  * cu valoarea veche, valoarea confirmată (Acceptat) câștigă — este cantitatea
@@ -11,7 +11,7 @@
  * și „Acceptat" în Senior.
  */
 export function plannedQuantity(
-  cantitateComandata: number,
+  _cantitateComandata: number,
   cantitateAcceptata: number | null | undefined
 ): number {
   const acceptata =
@@ -20,5 +20,5 @@ export function plannedQuantity(
       : NaN;
 
   if (Number.isFinite(acceptata) && acceptata > 0) return acceptata;
-  return cantitateComandata;
+  return 0;
 }

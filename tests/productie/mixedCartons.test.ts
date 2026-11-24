@@ -1,7 +1,20 @@
 import { describe, test, expect } from 'bun:test';
 import { expandCarton, findCarton, validateCarton, cartonReady, type MixedCarton } from '../../supabase/functions/_shared/mixedCartons';
+import { plannedQuantity } from '../../supabase/functions/_shared/erpQuantity';
 const row: MixedCarton = { produs_id: 'mix', denumire: 'Mixuri salate Lupino/Amorino', aliases: [], enabled: true, components: [{ produs_id: 'l', nume: 'Lupino', units: 6 }, { produs_id: 'a', nume: 'Amorino', units: 2 }] };
 describe('mixed commercial cartons', () => {
+  for (const accepted of [null, 0]) {
+    test(`mixed cartons with Acceptat ${accepted} do not fall back to ordered components`, () => {
+      const ordered = expandCarton(row, 10);
+      const acceptedParts = accepted == null ? null : expandCarton(row, accepted);
+      expect(ordered.map((part, i) => plannedQuantity(part.quantity, acceptedParts?.[i]?.quantity ?? null))).toEqual([0, 0]);
+    });
+  }
+  test('accepted cartons can increase independently of ordered cartons', () => {
+    const ordered = expandCarton(row, 10);
+    const accepted = expandCarton(row, 12);
+    expect(ordered.map((part, i) => plannedQuantity(part.quantity, accepted[i]?.quantity))).toEqual([72, 24]);
+  });
   test('one carton contains 6 Lupino and 2 Amorino, not one salad', () => expect(expandCarton(row, 1).map(c => c.quantity)).toEqual([6, 2]));
   test('10 cartons create 60 and 20 pieces', () => expect(expandCarton(row, 10).map(c => c.quantity)).toEqual([60, 20]));
   test('already converted 80 pieces expand once to 60 and 20', () => expect(expandCarton(row, 80, 'buc').map(c => c.quantity)).toEqual([60, 20]));

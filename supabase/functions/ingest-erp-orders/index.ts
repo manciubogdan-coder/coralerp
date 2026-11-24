@@ -519,7 +519,7 @@ Deno.serve(async (req) => {
         const externKey = linie.external_key ?? `${aviz.nr_aviz}::${linie.cod_produs}`;
         currentKeys.push(externKey);
         // Cantitatea planificată = „Acceptat" din Senior ERP (Cantitate_Disponibila).
-        // Dacă lipsește, folosim cantitatea comandată inițială.
+        // Gol/zero = fără cerere; nu revenim niciodată la cantitatea comandată.
         const cantitateComandata = Number(linie.cantitate) || 0;
         const acceptata = linie.cantitate_acceptata != null ? Number(linie.cantitate_acceptata) : NaN;
         const cantitate = plannedQuantity(cantitateComandata, Number.isFinite(acceptata) ? acceptata : null);
