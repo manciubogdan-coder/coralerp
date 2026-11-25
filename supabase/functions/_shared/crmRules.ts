@@ -3,7 +3,7 @@ export function canAccessCrm(approved: boolean, roles: string[]): boolean {
   return approved && roles.some(role => role === 'admin' || role === 'picking_vanzari');
 }
 /** Read-only price calculator actions open to the sales team (Vânzări hub); everything else in Argus stays admin-only. */
-export const SALES_PRICING_ACTIONS = new Set(["price_options", "price_list", "price_history", "partner_mirror_sales"]);
+export const SALES_PRICING_ACTIONS = new Set(["price_options", "price_list", "price_history", "partner_mirror_sales", "future_scan"]);
 export function canUsePricing(approved: boolean, roles: string[]): boolean {
   return canAccessCrm(approved, roles);
 }

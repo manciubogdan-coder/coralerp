@@ -39,6 +39,7 @@ import { purchasingProjectionStep } from '../_shared/forecastProjectionRules.ts'
 import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
+import { scanPrompt, parseScan } from "../_shared/futureScan.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
 import { validSubstitutions } from "../_shared/substitutionRules.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
@@ -562,6 +563,17 @@ Deno.serve(async (req) => {
       case "price_options": {
         try { return json(await priceOptions(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case "future_scan": {
+        try {
+          const run = createLovableAiGatewayRunIdFetch();
+          const key = Deno.env.get("LOVABLE_API_KEY");
+          if (!key) throw new Error("LOVABLE_API_KEY lipsește");
+          const anthropic = createAnthropic({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: run.fetch });
+          const today = new Date().toISOString().slice(0, 10);
+          const r = await generateText({ model: anthropic(CHAT_MODEL), prompt: scanPrompt(today), tools: { web_search: anthropic.tools.webSearch_20250305({ maxUses: 12 }) } as any, stopWhen: isStepCount(15) } as any);
+          return json(parseScan(r.text, today));
+        } catch (e) { return json({ error: friendlyError(e) }, 400); }
       }
       case "recipe_case_audit": {
         try { return json(await recipeCaseAudit(c.cloud)); }

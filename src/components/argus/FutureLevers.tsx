@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Globe, Loader2 } from "lucide-react";
+import { argusFetch } from "@/lib/argusApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,17 @@ export default function FutureLevers({ base, what, breakEven, months, onApply }:
   const [levers, setLevers] = useState<Levers>({});
   const [fee, setFee] = useState(0);
   const [note, setNote] = useState<string | null>(null);
+  const [scan, setScan] = useState<{ items: Array<{ lever: string; title: string; pct: number; effective: string; source: string; url: string; confirmed: boolean }>; advice: string[]; checkedAt: string } | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanErr, setScanErr] = useState<string | null>(null);
+  const runScan = async () => {
+    setScanning(true); setScanErr(null);
+    try {
+      const r = await argusFetch<{ levers: Levers; items: any[]; advice: string[]; checkedAt: string }>("future_scan", {}, {});
+      setScan(r); setLevers(r.levers); setFee(0); setNote(null);
+      if (Object.keys(r.levers).length) onApply(leversToPct(r.levers), 0);
+    } catch (e) { setScanErr((e as Error).message); } finally { setScanning(false); }
+  };
   const impact = leverImpact(base.costs, levers);
   const total = impact.reduce((s, x) => s + x.lei, 0);
   const year = months > 0 ? 12 / months : 1;
@@ -24,6 +36,16 @@ export default function FutureLevers({ base, what, breakEven, months, onApply }:
     <Card>
       <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4" />Viitor: legi, taxe și scumpiri — ce mă costă și ce fac</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-sm">
+        <div className="rounded border border-primary p-2 space-y-2">
+          <Button size="sm" onClick={runScan} disabled={scanning}>{scanning ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Globe className="mr-1 h-4 w-4" />}{scanning ? "Argus caută legile și scumpirile… (1–2 minute)" : "Argus: caută singur ce urmează și calculează"}</Button>
+          <p className="text-xs text-muted-foreground">Caută pe internet legile și scumpirile anunțate, completează procentele de mai jos și le aplică pe costurile tale reale din perioada aleasă.</p>
+          {scanErr && <p className="text-xs text-destructive">{scanErr}</p>}
+          {scan && <div className="space-y-1 text-xs">
+            <p className="font-medium">Ce a găsit Argus ({scan.checkedAt}){!scan.items.length && " — nicio schimbare cu sursă sigură"}</p>
+            {scan.items.map((i, k) => <p key={k}>• <b>{i.pct > 0 ? "+" : ""}{i.pct}%</b> {LEVER_LABEL[i.lever as keyof typeof LEVER_LABEL] ?? i.lever}: {i.title} {i.effective && `(din ${i.effective})`} — <a className="underline" href={i.url} target="_blank" rel="noreferrer">{i.source || "sursă"}</a> {i.confirmed ? "✓ lege publicată" : "· anunțat / estimare"}</p>)}
+            {scan.advice.length > 0 && <><p className="font-medium pt-1">Sfaturile lui Argus</p>{scan.advice.map((a, k) => <p key={k}>• {a}</p>)}</>}
+          </div>}
+        </div>
         <div className="flex flex-wrap gap-2">
           {PRESETS.map((p) => <Button key={p.id} size="sm" variant="outline" onClick={() => { setLevers(p.levers); setFee(p.feeDelta ?? 0); setNote(p.note); }}>{p.title}</Button>)}
         </div>
