@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { argusFetch, argusHeaders, ARGUS_URL } from "@/lib/argusApi";
+import { argusFetch, argusRequest, ARGUS_URL } from "@/lib/argusApi";
 import { decodePcm16, nextStart, VOICE_FIRST_SEC, VOICE_NEXT_SEC, VOICE_RATE } from "@/lib/viziune/pcmStream";
 import { Loader2, Mic, Send, Sparkles, Square, Volume2, VolumeX, X } from "lucide-react";
 import type { CopilotTarget } from "../../../supabase/functions/_shared/viziuneCopilotRules";
@@ -98,9 +98,9 @@ export function ArgusCopilot({ snapshot, onTarget, onDetails, onAsk, open, setOp
       src.onended = () => { sources.delete(src); finish(); };
     };
     try {
-      const res = await fetch(`${ARGUS_URL}?action=viziune_voice_stream`, {
+      const res = await argusRequest(`${ARGUS_URL}?action=viziune_voice_stream`, {
         method: "POST", signal: ctrl.signal,
-        headers: { ...(await argusHeaders()), "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: answer }),
       });
       if (!res.ok || !res.body || !/audio/i.test(res.headers.get("content-type") ?? "")) return false;

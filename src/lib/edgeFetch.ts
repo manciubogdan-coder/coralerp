@@ -27,6 +27,13 @@ function friendlyMessage(status: number, raw: unknown): string {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export class EdgeFetchError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "EdgeFetchError";
+  }
+}
+
 export interface EdgeFetchOptions {
   method?: "GET" | "POST";
   headers?: Record<string, string>;
@@ -75,7 +82,7 @@ export async function edgeFetchJson<T = any>(
         await sleep(baseDelayMs * Math.pow(2, attempt - 1));
         continue;
       }
-      throw new Error(friendlyMessage(res.status, rawError));
+      throw new EdgeFetchError(friendlyMessage(res.status, rawError), res.status);
     } catch (e) {
       // Network-level failure (fetch rejected): transient, safe to retry.
       if (e instanceof TypeError && attempt < attempts) {

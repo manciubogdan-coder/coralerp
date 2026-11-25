@@ -8,22 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { argusFetch } from "@/lib/argusApi";
+import { ARGUS_URL, argusFetch, argusEdgeFetch } from "@/lib/argusApi";
 import { setPriceRules } from "../../../supabase/functions/_shared/priceRules";
 import { defaultCostMonth, sheetFor } from "./PartnerMirror";
 import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, lastClosedPeriod, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, partnerResults, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
-import { supabase } from "@/integrations/supabase/client";
-import { edgeFetchJson } from "@/lib/edgeFetch";
 import FutureLevers from "./FutureLevers";
 
-const CLOUD_URL = "https://yeniohmlmxhjzywqlidx.supabase.co";
-const CLOUD_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllbmlvaG1sbXhoanp5d3FsaWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NjM0ODgsImV4cCI6MjA5MzEzOTQ4OH0.8rNaYX5D5hk22o_bUqERO9ChJfQdJYkaKiD9UsRi1mE";
 type Account = { period: string; cont: string; name: string; rev: number; exp: number };
 async function loadJournal(years: number[]): Promise<Account[]> {
-  const { data } = await supabase.auth.getSession();
   const out: Account[] = [];
   for (const y of years) {
-    const r: any = await edgeFetchJson(`${CLOUD_URL}/functions/v1/erp-mirror`, { method: "POST", headers: { apikey: CLOUD_ANON, Authorization: `Bearer ${CLOUD_ANON}`, "x-app-token": data.session?.access_token ?? "" }, body: { action: "pnl", year: y } });
+    const r: any = await argusEdgeFetch(ARGUS_URL.replace(/\/argus$/, '/erp-mirror'), { method: "POST", body: { action: "pnl", year: y } });
     if (!r?.live) throw new Error(r?.live_error || "Registrul contabil Senior nu a răspuns.");
     out.push(...(r.accounts ?? []));
   }

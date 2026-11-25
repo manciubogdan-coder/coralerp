@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { edgeFetchJson } from "@/lib/edgeFetch";
+import { edgeFetchJson, type EdgeFetchOptions } from "@/lib/edgeFetch";
+import { operationalToken, withOperationalSession, withOperationalResponse } from "@/lib/operationalSession";
 
 const CLOUD_URL = "https://yeniohmlmxhjzywqlidx.supabase.co";
 const CLOUD_ANON =
@@ -7,13 +8,42 @@ const CLOUD_ANON =
 
 export const ARGUS_URL = `${CLOUD_URL}/functions/v1/argus`;
 
-export async function argusHeaders(): Promise<Record<string, string>> {
-  const { data } = await supabase.auth.getSession();
+function headersForToken(token: string): Record<string, string> {
   return {
     apikey: CLOUD_ANON,
     Authorization: `Bearer ${CLOUD_ANON}`,
-    "x-app-token": data.session?.access_token ?? "",
+    "x-app-token": token,
   };
+}
+
+export async function argusHeaders(): Promise<Record<string, string>> {
+  return headersForToken(await operationalToken(supabase.auth));
+}
+
+function assertOperationalUrl(url: string) {
+  const parsed = new URL(url);
+  if (parsed.origin !== CLOUD_URL || !["/functions/v1/argus", "/functions/v1/erp-mirror", "/functions/v1/mixed-cartons"].includes(parsed.pathname)) {
+    throw new Error("Destinație neacceptată pentru sesiunea aplicației.");
+  }
+}
+
+export async function argusEdgeFetch<T = any>(url: string, options: EdgeFetchOptions = {}): Promise<T> {
+  assertOperationalUrl(url);
+  return withOperationalSession(supabase.auth, token => edgeFetchJson<T>(url, {
+    ...options, headers: { ...options.headers, ...headersForToken(token) },
+  }));
+}
+
+/** Fetch adapter for AI streams and FormData; clone the original body before each attempt. */
+export async function argusRequest(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const original = new Request(input, init);
+  assertOperationalUrl(original.url);
+  return withOperationalResponse(supabase.auth, token => {
+    const request = original.clone();
+    const headers = new Headers(request.headers);
+    for (const [key, value] of Object.entries(headersForToken(token))) headers.set(key, value);
+    return fetch(new Request(request, { headers }));
+  });
 }
 
 export async function argusFetch<T = any>(
@@ -22,9 +52,8 @@ export async function argusFetch<T = any>(
   body?: unknown,
 ): Promise<T> {
   const qs = new URLSearchParams({ action, ...params });
-  return edgeFetchJson<T>(`${ARGUS_URL}?${qs}`, {
+  return argusEdgeFetch<T>(`${ARGUS_URL}?${qs}`, {
     method: body === undefined ? "GET" : "POST",
-    headers: await argusHeaders(),
     body,
   });
 }

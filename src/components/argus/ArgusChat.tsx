@@ -25,7 +25,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { ARGUS_URL, argusFetch, argusHeaders } from "@/lib/argusApi";
+import { ARGUS_URL, argusFetch, argusRequest } from "@/lib/argusApi";
 import argusLogo from "@/assets/argus-logo.png";
 import { ARGUS_ACCEPT, MAX_FILE_BYTES, prepareArgusFile } from '@/lib/argus/prepareFile';
 import { markPending, readPending } from '@/lib/argus/backgroundWatch';
@@ -135,7 +135,7 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
     () =>
       new DefaultChatTransport({
         api: `${ARGUS_URL}?action=chat`,
-        headers: argusHeaders,
+        fetch: argusRequest,
         body: { threadId },
       }),
     [threadId],
@@ -175,7 +175,7 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
         const { file, prepared } = await prepareArgusFile(part);
         const form = new FormData();
         form.append('threadId', threadId); form.append('file', file); form.append('prepared', JSON.stringify(prepared));
-        const response = await fetch(`${ARGUS_URL}?action=attachment_upload`, { method: 'POST', headers: await argusHeaders(), body: form });
+        const response = await argusRequest(`${ARGUS_URL}?action=attachment_upload`, { method: 'POST', body: form });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Fișierul nu a putut fi încărcat.');
         const uploadedPart = result as FileUIPart;

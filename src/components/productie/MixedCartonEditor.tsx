@@ -8,8 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { NumberInput } from '@/components/ui/number-input';
 import { useMixedCartons } from '@/hooks/productie/useMixedCartons';
-import { argusHeaders, ARGUS_URL } from '@/lib/argusApi';
-import { edgeFetchJson } from '@/lib/edgeFetch';
+import { argusEdgeFetch, ARGUS_URL } from '@/lib/argusApi';
 import { validateCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 type Product = { id: string; nume: string; unitate_masura?: string };
 export default function MixedCartonEditor({ product, products, recipeIds, editRecipe }: { product: Product; products: Product[]; recipeIds: Set<string>; editRecipe: (product: Product) => void }) {
@@ -29,7 +28,7 @@ export default function MixedCartonEditor({ product, products, recipeIds, editRe
     try {
       validateCarton({ produs_id: product.id, denumire: product.nume, aliases: aliases.split('\n').map(x => x.trim()).filter(Boolean), components, enabled }, data);
       setBusy(true);
-      await edgeFetchJson(ARGUS_URL.replace(/\/argus$/, '/mixed-cartons'), { method: 'POST', headers: await argusHeaders(), body: { produs_id: product.id, aliases: aliases.split('\n').map(x => x.trim()).filter(Boolean), components: parts, enabled } });
+      await argusEdgeFetch(ARGUS_URL.replace(/\/argus$/, '/mixed-cartons'), { method: 'POST', body: { produs_id: product.id, aliases: aliases.split('\n').map(x => x.trim()).filter(Boolean), components: parts, enabled } });
       await cache.invalidateQueries({ queryKey: ['mixed-cartons'] });
       const synced = await syncCartonRecipes(product.id);
       await cache.invalidateQueries({ queryKey: ['recipes'] });
