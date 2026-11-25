@@ -14,6 +14,7 @@ import { defaultCostMonth, sheetFor } from "./PartnerMirror";
 import { ACCOUNTS, BASE, COST_KEYS, COST_LABEL, DEFAULT_FIXED, accountMatch, lastClosedPeriod, recipeLossValue, breakEvenPricePct, fixedOf, gamaOf, partnerContributions, pctOf, structureOf, partnerResults, type CostKey, type SaleLine, type Scenario, type Structure } from "@/lib/argus/costStructure";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeFetchJson } from "@/lib/edgeFetch";
+import FutureLevers from "./FutureLevers";
 
 const CLOUD_URL = "https://yeniohmlmxhjzywqlidx.supabase.co";
 const CLOUD_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllbmlvaG1sbXhoanp5d3FsaWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NjM0ODgsImV4cCI6MjA5MzEzOTQ4OH0.8rNaYX5D5hk22o_bUqERO9ChJfQdJYkaKiD9UsRi1mE";
@@ -333,6 +334,7 @@ export default function CostStructure() {
       </Card>
 
       {view.length > 0 && <>
+        <FutureLevers base={base} what={what} breakEven={be} months={monthsCount} onApply={(pct, feeDelta) => setSc((x) => ({ ...x, name: "Viitor", pct: { ...x.pct, ...pct }, feeDelta }))} />
         <Card className="border-primary">
           <CardHeader className="pb-2"><CardTitle className="text-base">Ce se întâmplă dacă… <span className="text-xs font-normal text-muted-foreground">(tot ce e mai jos se recalculează după alegerea de aici)</span></CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
