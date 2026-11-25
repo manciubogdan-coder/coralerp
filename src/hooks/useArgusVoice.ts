@@ -107,25 +107,46 @@ export function useArgusVoice(onTranscript: (text: string) => void) {
     return true;
   }
 
-  async function speak(answer: string) {
-    if (!enabled || !answer.trim() || !mounted.current) return;
+  type Live = NonNullable<typeof playback.current> & { queue: string[]; closed: boolean; wake: () => void };
+  /** Starts a spoken answer that receives its text piece by piece while it is still being written. */
+  function startStream(): Live | null {
+    if (!enabled || !mounted.current) return null;
     stopPlayback(); unlockAudio(); setNotice(""); setPlaying(true);
-    const state = { controller: new AbortController(), sources: new Set<AudioBufferSourceNode>() };
+    const state: Live = { controller: new AbortController(), sources: new Set<AudioBufferSourceNode>(), queue: [], closed: false, wake: () => {} };
     playback.current = state;
-    try {
-      if (audioContext.current?.state === "suspended") await audioContext.current.resume();
-      for (const chunk of speechChunks(answer)) {
-        if (state.controller.signal.aborted) break;
-        let played = false;
-        try { played = await playChunk(chunk, state); }
-        catch (error) { if (state.controller.signal.aborted) break; }
-        if (!played && !await browserVoice(chunk, state)) {
-          if (mounted.current) setNotice("Vocea nu este disponibilă momentan. Răspunsul rămâne în conversație.");
-          break;
+    void (async () => {
+      try {
+        if (audioContext.current?.state === "suspended") await audioContext.current.resume();
+        while (!state.controller.signal.aborted) {
+          if (!state.queue.length) {
+            if (state.closed) break;
+            await new Promise<void>(resolve => { state.wake = resolve; });
+            continue;
+          }
+          const chunk = state.queue.shift()!;
+          let played = false;
+          try { played = await playChunk(chunk, state); }
+          catch { if (state.controller.signal.aborted) break; }
+          if (!played && !await browserVoice(chunk, state)) {
+            if (mounted.current) setNotice("Vocea nu este disponibilă momentan. Răspunsul rămâne în conversație.");
+            break;
+          }
         }
-      }
-    } catch { if (!state.controller.signal.aborted && mounted.current) setNotice("Nu pot reda vocea acum. Răspunsul scris este păstrat."); }
-    finally { if (playback.current === state) { playback.current = null; if (mounted.current) setPlaying(false); } }
+      } catch { if (!state.controller.signal.aborted && mounted.current) setNotice("Nu pot reda vocea acum. Răspunsul scris este păstrat."); }
+      finally { if (playback.current === state) { playback.current = null; if (mounted.current) setPlaying(false); } }
+    })();
+    return state;
+  }
+  function feed(state: Live | null, text: string, close = false) {
+    if (!state || playback.current !== state) return;
+    if (text.trim()) state.queue.push(...speechChunks(text));
+    if (close) state.closed = true;
+    state.wake();
+  }
+
+  async function speak(answer: string) {
+    if (!answer.trim()) return;
+    feed(startStream(), answer, true);
   }
 
   function stopRecording() {
@@ -192,5 +213,5 @@ export function useArgusVoice(onTranscript: (text: string) => void) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { enabled, playing, recording, transcribing, notice, canRecord, toggleEnabled, startRecording, stopRecording, speak, stopPlayback, unlockAudio };
+  return { enabled, playing, recording, transcribing, notice, canRecord, toggleEnabled, startRecording, stopRecording, speak, startStream, feed, stopPlayback, unlockAudio };
 }

@@ -31,6 +31,7 @@ import { ARGUS_ACCEPT, MAX_FILE_BYTES, prepareArgusFile } from '@/lib/argus/prep
 import { markPending, readPending, clearPending } from '@/lib/argus/backgroundWatch';
 import { PendingAttachments, AttachFilesButton, AttachmentSubmit, SentAttachment } from './ArgusAttachments';
 import { useArgusVoice } from '@/hooks/useArgusVoice';
+import { readySpeech } from '@/lib/argus/voiceRules';
 import { ArgusVoiceControls } from './ArgusVoiceControls';
 import { argusChatPath, type ArgusMode } from '../../../supabase/functions/_shared/futureConversationRules';
 
@@ -145,6 +146,9 @@ function ReportCard({ output }: { output: any }) {
 function ChatWindow({ threadId, initial, onSaved, backgroundPending, mode }: { threadId: string; initial: UIMessage[]; onSaved: () => void; backgroundPending?: boolean; mode: ArgusMode }) {
   const submitVoice = useRef<(text: string) => void>(() => {});
   const voice = useArgusVoice(text => submitVoice.current(text));
+  // Speech of the answer being written: starts on the first finished sentence, not at the end.
+  const live = useRef<{ id: string; spoken: number; stream: ReturnType<typeof voice.startStream> } | null>(null);
+  const armed = useRef(false);
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -159,8 +163,11 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending, mode }: { t
     onSaved();
     if (mode === 'future' && !isAbort && !isError && !isDisconnect && !(message.metadata as any)?.failed) {
       const answer = message.parts.filter(p => p.type === 'text').map(p => p.type === 'text' ? p.text : '').join('\n');
-      void voice.speak(answer);
+      const current = live.current;
+      if (current && current.id === message.id && current.stream) voice.feed(current.stream, readySpeech(answer, current.spoken, true).chunk, true);
+      else if (armed.current) void voice.speak(answer);
     }
+    if (mode === 'future') { armed.current = false; if (live.current?.stream) voice.feed(live.current.stream, '', true); live.current = null; }
   } });
   const [text, setText] = useState("");
   const [preparing, setPreparing] = useState(false);
@@ -172,6 +179,18 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending, mode }: { t
   }, [status, threadId]);
 
   const busy = status === "submitted" || status === "streaming";
+  useEffect(() => {
+    if (mode !== 'future' || !armed.current || status !== 'streaming' || !voice.enabled) return;
+    const m = messages[messages.length - 1];
+    if (!m || m.role !== 'assistant') return;
+    const answer = m.parts.filter((p: any) => p.type === 'text').map((p: any) => p.text ?? '').join('\n');
+    if (!live.current || live.current.id !== m.id) live.current = { id: m.id, spoken: 0, stream: null };
+    const { chunk, next } = readySpeech(answer, live.current.spoken, false);
+    if (!chunk) return;
+    if (!live.current.stream) live.current.stream = voice.startStream();
+    voice.feed(live.current.stream, chunk);
+    live.current.spoken = next;
+  }, [messages, status, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -183,7 +202,7 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending, mode }: { t
 
   const send = async (t: string, files: FileUIPart[] = []) => {
     if ((!t.trim() && !files.length) || busy || preparing) return;
-    if (mode === 'future') { voice.stopPlayback(); voice.unlockAudio(); }
+    if (mode === 'future') { voice.stopPlayback(); voice.unlockAudio(); armed.current = true; live.current = null; }
     clearError();
     setPreparing(true);
     try {
@@ -220,7 +239,7 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending, mode }: { t
 
   const retry = async () => {
     if (busy || preparing) return;
-    if (mode === 'future') { voice.stopPlayback(); voice.unlockAudio(); }
+    if (mode === 'future') { voice.stopPlayback(); voice.unlockAudio(); armed.current = true; live.current = null; }
     clearError();
     await regenerate();
   };

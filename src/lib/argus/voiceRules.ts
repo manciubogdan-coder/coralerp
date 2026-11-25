@@ -13,3 +13,16 @@ export function speechChunks(text: string, maxLength = 880): string[] {
   if (rest) chunks.push(rest);
   return chunks;
 }
+/**
+ * Text of a streaming answer that can already be spoken: everything after `spoken` up to the
+ * last finished sentence (or all of it when `final`). The first piece may be short so speech starts fast.
+ */
+export function readySpeech(text: string, spoken: number, final: boolean, minLength = 30): { chunk: string; next: number } {
+  const rest = text.slice(spoken);
+  if (final) return { chunk: rest.trim(), next: text.length };
+  let end = -1;
+  const re = /[.!?;:](?=\s)|\n/g;
+  for (let m = re.exec(rest); m; m = re.exec(rest)) end = m.index + 1;
+  if (end < minLength) return { chunk: "", next: spoken };
+  return { chunk: rest.slice(0, end).trim(), next: spoken + end };
+}

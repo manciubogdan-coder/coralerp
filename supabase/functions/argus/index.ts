@@ -195,6 +195,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     prepareStep: ({ stepNumber }: { stepNumber: number }) =>
       stepNumber >= 22
         ? { toolChoice: "none" as const }
+        : mode === "future" && stepNumber === 0 ? { toolChoice: "required" as const }
         : purchasingProjectionStep(messageText([...messages].reverse().find(m => m.role === 'user')), stepNumber),
     // No client abort: the answer keeps running and is saved even if the user leaves the page.
   });
