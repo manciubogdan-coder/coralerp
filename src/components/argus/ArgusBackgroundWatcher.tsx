@@ -3,8 +3,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { argusFetch } from "@/lib/argusApi";
 import { clearPending, isDone, readPending } from "@/lib/argus/backgroundWatch";
+import { argusChatPath, type ArgusMode } from "../../../supabase/functions/_shared/futureConversationRules";
 
-type Thread = { id: string; title: string; updated_at: string };
+type Thread = { id: string; title: string; updated_at: string; mode?: ArgusMode };
 
 /** Polls pending Argus threads app-wide and notifies (toast + browser notification) with a link to the answer. */
 export default function ArgusBackgroundWatcher() {
@@ -24,7 +25,7 @@ export default function ArgusBackgroundWatcher() {
           if (!isDone(p, t?.updated_at)) continue;
           clearPending(p.threadId);
           window.dispatchEvent(new CustomEvent("argus-done", { detail: p.threadId }));
-          const link = `/administrativ/argus/chat/${p.threadId}`;
+          const link = argusChatPath(t?.mode, p.threadId);
           const onPage = window.location.pathname === link && document.visibilityState === "visible";
           if (onPage) continue;
           const title = "Argus a răspuns";

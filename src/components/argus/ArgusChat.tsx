@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage, type FileUIPart } from "ai";
 import * as XLSX from "xlsx";
-import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare, BookmarkPlus, Zap, Table2, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, FileSpreadsheet, Loader2, MessageSquare, BookmarkPlus, Zap, Table2, CheckCircle2, Volume2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { lastSeniorSql, markdownTables, stepLabel } from "@/lib/argus/chatExtras";
 import { CreateReportModal } from "./ArgusAgentsDashboard";
@@ -28,15 +28,20 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { ARGUS_URL, argusFetch, argusRequest } from "@/lib/argusApi";
 import argusLogo from "@/assets/argus-logo.png";
 import { ARGUS_ACCEPT, MAX_FILE_BYTES, prepareArgusFile } from '@/lib/argus/prepareFile';
-import { markPending, readPending } from '@/lib/argus/backgroundWatch';
+import { markPending, readPending, clearPending } from '@/lib/argus/backgroundWatch';
 import { PendingAttachments, AttachFilesButton, AttachmentSubmit, SentAttachment } from './ArgusAttachments';
+import { useArgusVoice } from '@/hooks/useArgusVoice';
+import { ArgusVoiceControls } from './ArgusVoiceControls';
+import { argusChatPath, type ArgusMode } from '../../../supabase/functions/_shared/futureConversationRules';
 
-type Thread = { id: string; title: string; updated_at: string };
+type Thread = { id: string; title: string; updated_at: string; mode?: ArgusMode };
 
 const TOOL_TITLES: Record<string, string> = {
   "tool-metrici_perioada": "Analiză pe perioadă",
   "tool-interogare_date": "Citire date",
   "tool-genereaza_raport": "Raport Excel",
+  "tool-cauta_legislatie_viitor": "Surse legislative și economice",
+  "tool-calculeaza_impact_viitor": "Impactul în bani",
   "tool-propune_actiune": "Pregătesc o acțiune",
 };
 
@@ -45,6 +50,13 @@ const SUGGESTIONS = [
   "Cine a greșit cel mai mult luna asta și unde?",
   "Care linie de producție e cea mai puțin productivă și de ce?",
   "Fă-mi un raport Excel cu recepțiile de materii prime din ultimele 30 de zile, pe furnizor.",
+];
+
+const FUTURE_SUGGESTIONS = [
+  "Ce legi și taxe se schimbă anul viitor și care ne afectează firma?",
+  "Ce impact are salariul minim asupra costurilor noastre? Verifică legea și cifrele firmei.",
+  "Unde suntem vulnerabili anul viitor și ce ar trebui să facem mai întâi?",
+  "Ce trebuie să renegociem cu clienții dacă se scumpesc transportul și ambalajele?",
 ];
 
 function ActionCard({ output }: { output: any }) {
@@ -130,7 +142,9 @@ function ReportCard({ output }: { output: any }) {
   );
 }
 
-function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadId: string; initial: UIMessage[]; onSaved: () => void; backgroundPending?: boolean }) {
+function ChatWindow({ threadId, initial, onSaved, backgroundPending, mode }: { threadId: string; initial: UIMessage[]; onSaved: () => void; backgroundPending?: boolean; mode: ArgusMode }) {
+  const submitVoice = useRef<(text: string) => void>(() => {});
+  const voice = useArgusVoice(text => submitVoice.current(text));
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
@@ -140,7 +154,14 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
       }),
     [threadId],
   );
-  const { messages, sendMessage, status, stop, error, regenerate, clearError } = useChat({ id: threadId, messages: initial, transport, onFinish: onSaved });
+  const { messages, sendMessage, status, stop, error, regenerate, clearError } = useChat({ id: threadId, messages: initial, transport, onFinish: ({ message, isAbort, isError, isDisconnect }) => {
+    if (!isAbort && !isError && !isDisconnect) clearPending(threadId);
+    onSaved();
+    if (mode === 'future' && !isAbort && !isError && !isDisconnect && !(message.metadata as any)?.failed) {
+      const answer = message.parts.filter(p => p.type === 'text').map(p => p.type === 'text' ? p.text : '').join('\n');
+      void voice.speak(answer);
+    }
+  } });
   const [text, setText] = useState("");
   const [preparing, setPreparing] = useState(false);
   const [fileProgress, setFileProgress] = useState('');
@@ -162,6 +183,7 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
 
   const send = async (t: string, files: FileUIPart[] = []) => {
     if ((!t.trim() && !files.length) || busy || preparing) return;
+    if (mode === 'future') { voice.stopPlayback(); voice.unlockAudio(); }
     clearError();
     setPreparing(true);
     try {
@@ -194,9 +216,11 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
       throw error;
     } finally { setPreparing(false); setFileProgress(''); }
   };
+  submitVoice.current = (question) => { void send(question).catch(() => undefined); };
 
   const retry = async () => {
     if (busy || preparing) return;
+    if (mode === 'future') { voice.stopPlayback(); voice.unlockAudio(); }
     clearError();
     await regenerate();
   };
@@ -293,21 +317,22 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
           {messages.length === 0 ? (
             <ConversationEmptyState
               icon={<img src={argusLogo} alt="Argus" className="h-14 w-14" />}
-              title="Întreabă-l pe Argus"
-              description="Vede tot ce mișcă în firmă: oameni, producție, depozite, greșeli."
+              title={mode === 'future' ? 'Argus Viitor' : 'Întreabă-l pe Argus'}
+              description={mode === 'future' ? undefined : 'Vede tot ce mișcă în firmă: oameni, producție, depozite, greșeli.'}
             >
               <div className="mt-4 flex flex-col items-center gap-3">
                 <img src={argusLogo} alt="Argus" className="h-14 w-14" />
-                <div className="text-lg font-semibold">Întreabă-l pe Argus</div>
+                <div className="text-lg font-semibold">{mode === 'future' ? 'Argus Viitor' : 'Întreabă-l pe Argus'}</div>
                 <div className="grid w-full max-w-xl gap-2">
-                  {SUGGESTIONS.map((s) => (
-                    <button
+                  {(mode === 'future' ? FUTURE_SUGGESTIONS : SUGGESTIONS).map((s) => (
+                    <Button
                       key={s}
+                      variant="outline"
                       onClick={() => send(s)}
-                      className="rounded-lg border bg-card px-3 py-2 text-left text-sm hover:border-primary"
+                      className="h-auto justify-start whitespace-normal rounded-md px-3 py-2 text-left text-sm"
                     >
                       {s}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
@@ -354,7 +379,8 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
                 </MessageContent>
               </Message>
               {m.role === "assistant" && !(idx === messages.length - 1 && busy) && (
-                <div className="-mt-2 flex">
+                <div className="-mt-2 flex flex-wrap">
+                  {mode === 'future' && textOf(m) && <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" title="Ascultă răspunsul" aria-label="Ascultă răspunsul" disabled={!voice.enabled || voice.recording || voice.transcribing} onClick={() => { voice.unlockAudio(); void voice.speak(textOf(m)); }}><Volume2 className="h-3.5 w-3.5" /></Button>}
                   <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => saveAsAgent(idx)}>
                     <BookmarkPlus className="mr-1 h-3.5 w-3.5" /> Salvează ca agent
                   </Button>
@@ -414,21 +440,22 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
         <ConversationScrollButton />
       </Conversation>
       <div className="mx-auto w-full max-w-3xl p-3">
+        {mode === 'future' && (voice.notice || voice.recording || voice.transcribing || voice.playing) && <div role="status" className="mb-2 text-xs text-muted-foreground">{voice.recording ? 'Te ascult…' : voice.transcribing ? 'Transcriu întrebarea…' : voice.playing ? 'Argus vorbește…' : voice.notice}</div>}
         {fileProgress && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{fileProgress}</div>}
         <PromptInput onSubmit={(msg) => send(msg.text ?? "", msg.files)} accept={ARGUS_ACCEPT} multiple maxFiles={5} maxFileSize={MAX_FILE_BYTES}
           onError={(err) => toast({ title: 'Fișier neacceptat', description: err.code === 'max_files' ? 'Poți atașa până la 5 fișiere la un mesaj.' : err.code === 'max_file_size' ? 'Fiecare fișier poate avea cel mult 25 MB.' : 'Alege poze JPG/PNG/WebP, PDF, Excel, Word (.docx), CSV sau TXT.', variant: 'destructive' })}>
-          <PendingAttachments disabled={busy || preparing} />
+          <PendingAttachments disabled={busy || preparing || voice.recording || voice.transcribing} />
           <PromptInputTextarea
             ref={taRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Întreabă-l pe Argus sau atașează un document…"
-            disabled={preparing}
+            placeholder={mode === 'future' ? 'Ce vrei să afli despre viitorul firmei?' : 'Întreabă-l pe Argus sau atașează un document…'}
+            disabled={preparing || voice.recording || voice.transcribing}
             autoFocus
           />
           <PromptInputFooter className="justify-between">
-            <PromptInputTools><AttachFilesButton disabled={busy || preparing} /></PromptInputTools>
-            <AttachmentSubmit status={status} preparing={preparing} text={text} onStop={stop} />
+            <PromptInputTools><AttachFilesButton disabled={busy || preparing || voice.recording || voice.transcribing} />{mode === 'future' && <ArgusVoiceControls voice={voice} disabled={busy || preparing} />}</PromptInputTools>
+            <AttachmentSubmit status={status} preparing={preparing || voice.recording || voice.transcribing} text={text} onStop={stop} />
           </PromptInputFooter>
         </PromptInput>
       </div>
@@ -445,13 +472,13 @@ function ChatWindow({ threadId, initial, onSaved, backgroundPending }: { threadI
   );
 }
 
-export default function ArgusChat({ threadId }: { threadId?: string }) {
+export default function ArgusChat({ threadId, mode = 'general' }: { threadId?: string; mode?: ArgusMode }) {
   const navigate = useNavigate();
   const [threads, setThreads] = useState<Thread[]>([]);
   const [initial, setInitial] = useState<UIMessage[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
 
-  const loadThreads = () => argusFetch<Thread[]>("threads").then(setThreads).catch((e) => setLoadErr(e.message));
+  const loadThreads = () => argusFetch<Thread[]>("threads", { mode }).then(setThreads).catch((e) => setLoadErr(e.message));
   const [reloadKey, setReloadKey] = useState(0);
   const [bgPending, setBgPending] = useState(false);
   useEffect(() => {
@@ -469,35 +496,45 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
   useEffect(() => {
     setInitial(null);
     if (!threadId) return;
+    let active = true;
     setLoadErr(null);
-    argusFetch<{ messages: UIMessage[] }>("messages", { id: threadId })
-      .then((r) => setInitial(r.messages ?? []))
+    argusFetch<{ messages: UIMessage[]; thread: Thread }>("messages", { id: threadId })
+      .then((r) => { if (!active) return; if ((r.thread.mode ?? 'general') !== mode) navigate(argusChatPath(r.thread.mode, threadId), { replace: true }); else setInitial(r.messages ?? []); })
       .catch((e) => {
+        if (!active) return;
         if (/nu există/i.test(e.message)) {
           toast({ title: "Conversația nu mai există", description: "Pornește una nouă." });
-          navigate("/administrativ/argus/chat", { replace: true });
+          navigate(argusChatPath(mode), { replace: true });
         } else setLoadErr(e.message);
       });
-  }, [threadId, reloadKey]);
+    return () => { active = false; };
+  }, [threadId, reloadKey, mode]);
 
   const newThread = async () => {
     try {
-      const t = await argusFetch<Thread>("create_thread", {}, {});
+      const t = await argusFetch<Thread>("create_thread", {}, { mode });
       setThreads((x) => [t, ...x]);
-      navigate(`/administrativ/argus/chat/${t.id}`);
+      navigate(argusChatPath(mode, t.id));
     } catch (e: any) {
       toast({ variant: "destructive", title: "Eroare", description: e.message });
     }
   };
   const del = async (id: string) => {
-    await argusFetch("delete_thread", { id }, {}).catch(() => null);
-    setThreads((x) => x.filter((t) => t.id !== id));
-    if (id === threadId) navigate("/administrativ/argus/chat");
+    try {
+      await argusFetch("delete_thread", { id }, {});
+      setThreads((x) => x.filter((t) => t.id !== id));
+      if (id === threadId) navigate(argusChatPath(mode));
+    } catch (error) { toast({ variant: 'destructive', title: 'Conversația nu a fost ștearsă', description: (error as Error).message }); }
   };
+
+  const started = useRef(false);
+  useEffect(() => {
+    if (mode === 'future' && !threadId && !started.current) { started.current = true; void newThread(); }
+  }, [mode, threadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showList, setShowList] = useState(false);
   return (
-    <div className="relative flex h-[calc(100vh-190px)] min-h-[520px] overflow-hidden rounded-xl border bg-background">
+    <div className={cn('relative flex overflow-hidden border bg-background', mode === 'future' ? 'h-[calc(100dvh-255px)] min-h-[330px] rounded-md md:h-[calc(100dvh-225px)] lg:h-[calc(100dvh-165px)]' : 'h-[calc(100vh-190px)] min-h-[520px] rounded-xl')}>
       {showList && <div className="absolute inset-0 z-10 bg-background/60 md:hidden" onClick={() => setShowList(false)} />}
       <aside className={cn(
         "w-64 shrink-0 flex-col border-r bg-muted/30 md:flex md:static",
@@ -517,13 +554,13 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
                 t.id === threadId ? "bg-primary/10 text-primary" : "hover:bg-muted",
               )}
             >
-              <button className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left" onClick={() => { setShowList(false); navigate(`/administrativ/argus/chat/${t.id}`); }}>
+              <Button variant="ghost" className="flex h-auto min-w-0 flex-1 items-center justify-start gap-2 px-2 py-2 text-left font-normal" onClick={() => { setShowList(false); navigate(argusChatPath(mode, t.id)); }}>
                 <MessageSquare className="h-4 w-4 shrink-0" />
                 <span className="truncate">{t.title}</span>
-              </button>
-              <button className="px-2 md:opacity-0 md:group-hover:opacity-100" onClick={() => del(t.id)} aria-label="Șterge conversația">
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 md:opacity-0 md:group-hover:opacity-100" onClick={() => del(t.id)} aria-label="Șterge conversația" title="Șterge conversația">
                 <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -541,8 +578,8 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
         ) : !threadId ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
             <img src={argusLogo} alt="Argus" className="h-20 w-20" />
-            <div className="text-xl font-semibold">Argus te ascultă</div>
-            <p className="max-w-md text-sm text-muted-foreground">Pornește o conversație ca să întrebi orice despre firmă sau să ceri un raport.</p>
+            <div className="text-xl font-semibold">{mode === 'future' ? 'Argus Viitor' : 'Argus te ascultă'}</div>
+            {mode !== 'future' && <p className="max-w-md text-sm text-muted-foreground">Pornește o conversație ca să întrebi orice despre firmă sau să ceri un raport.</p>}
             <Button onClick={newThread}>
               <Plus className="mr-2 h-4 w-4" /> Conversație nouă
             </Button>
@@ -552,7 +589,7 @@ export default function ArgusChat({ threadId }: { threadId?: string }) {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <ChatWindow key={`${threadId}:${reloadKey}`} threadId={threadId} initial={initial} onSaved={loadThreads} backgroundPending={bgPending} />
+          <ChatWindow key={`${threadId}:${reloadKey}`} threadId={threadId} initial={initial} onSaved={loadThreads} backgroundPending={bgPending} mode={mode} />
         )}
         </div>
       </section>

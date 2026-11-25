@@ -8,8 +8,10 @@ describe("price calculator in Vânzări: who may use it", () => {
     expect(canUsePricing(true, ["productie"])).toBe(false);
     expect(canUsePricing(false, ["picking_vanzari"])).toBe(false);
   });
-  it("only the price list, offer history and partner mirror reads are opened; rules and live saves stay admin-only", () => {
-    expect([...SALES_PRICING_ACTIONS].sort()).toEqual(["partner_mirror_sales", "price_history", "price_list", "price_options"]);
+  it("existing pricing and future-scan reads remain open; chat, rules and live saves stay admin-only", () => {
+    expect([...SALES_PRICING_ACTIONS].sort()).toEqual(["future_scan", "partner_mirror_sales", "price_history", "price_list", "price_options"]);
+    expect(SALES_PRICING_ACTIONS.has("chat")).toBe(false);
+    expect(SALES_PRICING_ACTIONS.has("voice_transcribe")).toBe(false);
     expect(SALES_PRICING_ACTIONS.has("price_rules_save")).toBe(false);
     expect(SALES_PRICING_ACTIONS.has("live_save")).toBe(false);
   });

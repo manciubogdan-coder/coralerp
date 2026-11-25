@@ -1,0 +1,2 @@
+ALTER TABLE public.argus_threads ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'general' CHECK (mode IN ('general', 'future'));
+CREATE INDEX IF NOT EXISTS argus_threads_user_mode_updated_idx ON public.argus_threads (user_id, mode, updated_at DESC, id);

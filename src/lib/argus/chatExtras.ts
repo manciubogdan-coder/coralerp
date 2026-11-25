@@ -8,6 +8,8 @@ const STEP: Record<string, [string, string]> = {
   dosar_produs: ["Deschid dosarul produsului…", "Am citit dosarul produsului"],
   interogare_date: ["Citesc datele din aplicație…", "Am citit datele din aplicație"],
   metrici_perioada: ["Calculez indicatorii pe perioadă…", "Am calculat indicatorii"],
+  cauta_legislatie_viitor: ["Caut legile și prognozele în surse publice…", "Am verificat sursele legislative"],
+  calculeaza_impact_viitor: ["Calculez impactul pe cifrele citite…", "Am calculat impactul"],
   genereaza_raport: ["Pregătesc raportul Excel…", "Raportul Excel e gata"],
   propune_actiune: ["Pregătesc acțiunea propusă…", "Acțiunea e pregătită"],
   cauta_conversatii: ["Caut în conversațiile anterioare…", "Am căutat în conversații"],

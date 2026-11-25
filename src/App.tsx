@@ -425,7 +425,7 @@ const AppShell = () => {
                     </ProtectedRoute>
                   }
                 />
-                {["/administrativ/argus", "/administrativ/argus/agenti", "/administrativ/argus/calculator-pret", "/administrativ/argus/chat", "/administrativ/argus/chat/:threadId"].map((p) => (
+                {["/administrativ/argus", "/administrativ/argus/agenti", "/administrativ/argus/calculator-pret", "/administrativ/argus/chat", "/administrativ/argus/chat/:threadId", "/administrativ/argus/viitor", "/administrativ/argus/viitor/:threadId"].map((p) => (
                   <Route
                     key={p}
                     path={p}

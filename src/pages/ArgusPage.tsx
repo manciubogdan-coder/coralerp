@@ -414,30 +414,31 @@ const ArgusPage: React.FC = () => {
   const { threadId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const tab = location.pathname.includes("/argus/chat") ? "chat" : location.pathname.includes("/argus/agenti") ? "agenti" : location.pathname.includes("/argus/calculator-pret") ? "pret" : "tablou";
+  const tab = location.pathname.includes("/argus/viitor") ? "viitor" : location.pathname.includes("/argus/chat") ? "chat" : location.pathname.includes("/argus/agenti") ? "agenti" : location.pathname.includes("/argus/calculator-pret") ? "pret" : "tablou";
   return (
     <div className="container mx-auto space-y-4 px-2 py-3 md:px-6 md:py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <img src={argusLogo} alt="Argus" className="h-12 w-12" />
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Argus</h1>
-            <p className="text-sm text-muted-foreground">Ochiul care vede tot ce mișcă în firmă.</p>
+            <h1 className="text-2xl font-bold">{tab === "viitor" ? "Argus Viitor" : "Argus"}</h1>
+            {tab !== "viitor" && <p className="text-sm text-muted-foreground">Ochiul care vede tot ce mișcă în firmă.</p>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Tabs value={tab} onValueChange={(v) => navigate(v === "chat" ? "/administrativ/argus/chat" : v === "agenti" ? "/administrativ/argus/agenti" : v === "pret" ? "/administrativ/argus/calculator-pret" : "/administrativ/argus")}>
-            <TabsList>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap">
+          <Tabs className="w-full min-w-0 lg:w-auto lg:flex-1" value={tab} onValueChange={(v) => navigate(v === "viitor" ? "/administrativ/argus/viitor" : v === "chat" ? "/administrativ/argus/chat" : v === "agenti" ? "/administrativ/argus/agenti" : v === "pret" ? "/administrativ/argus/calculator-pret" : "/administrativ/argus")}>
+            <TabsList className="max-w-full justify-start overflow-x-auto">
               <TabsTrigger value="tablou">Tablou de bord</TabsTrigger>
               <TabsTrigger value="agenti">Agenți & Rapoarte</TabsTrigger>
               <TabsTrigger value="pret">Calculator preț</TabsTrigger>
               <TabsTrigger value="chat">Întreabă-l pe Argus</TabsTrigger>
+              <TabsTrigger value="viitor">Viitor & decizii</TabsTrigger>
             </TabsList>
           </Tabs>
           <BackToHubButton />
         </div>
       </div>
-      {tab === "chat" ? <ArgusChat threadId={threadId} /> : tab === "agenti" ? <ArgusAgentsDashboard /> : tab === "pret" ? <PriceCalculator /> : <Dashboard />}
+      {tab === "viitor" ? <ArgusChat key="future" threadId={threadId} mode="future" /> : tab === "chat" ? <ArgusChat key="general" threadId={threadId} /> : tab === "agenti" ? <ArgusAgentsDashboard /> : tab === "pret" ? <PriceCalculator /> : <Dashboard />}
     </div>
   );
 };

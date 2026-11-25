@@ -40,6 +40,8 @@ import { encodeBase64, decodeBase64 } from "jsr:@std/encoding@1/base64";
 import { receptionPriceSafety } from '../_shared/receiptPriceSafety.ts';
 import { recipeCaseAudit } from "../_shared/recipeCaseAudit.ts";
 import { scanPrompt, parseScan } from "../_shared/futureScan.ts";
+import { argusMode, futureInstructions } from "../_shared/futureConversationRules.ts";
+import { futureTools } from "./futureTools.ts";
 import { rawMaterialPrices } from "../_shared/rawMaterialPrices.ts";
 import { validSubstitutions } from "../_shared/substitutionRules.ts";
 import { packagingStoreKey, packagingUnits } from '../_shared/packagingRules.ts';
@@ -104,8 +106,9 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const threadId = String(body.threadId ?? "");
   const messages = repairChatMessageIds(body.messages as UIMessage[], threadId);
   if (!threadId || !validChatMessages(messages)) return json({ error: "Mesaj invalid. Reîncarcă această conversație și încearcă din nou." }, 400);
-  const { data: th } = await c.cloud.from("argus_threads").select("id,title").eq("id", threadId).eq("user_id", userId).maybeSingle();
+  const { data: th } = await c.cloud.from("argus_threads").select("id,title,mode").eq("id", threadId).eq("user_id", userId).maybeSingle();
   if (!th) return json({ error: "Conversația nu există" }, 404);
+  const mode = argusMode(th.mode);
 
   const today = bucharestDay();
   const run = createLovableAiGatewayRunIdFetch();
@@ -127,6 +130,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
   const manifest = attachmentManifest(messages);
   const tools = {
     ...readTools(c, threadId, messages),
+    ...(mode === "future" ? futureTools(today) : {}),
     reciteste_atasament: tool({
       description: "Recitește originalul: interval de linii (max 100), sau o imagine scanată după indice 1-based. Referința trebuie să fie din manifest. Imaginea este indice în lista scanărilor, NU număr de pagină PDF.",
       inputSchema: jsonSchema<{ referinta: string; linie: number; numar: number; imagine: number | null }>({ type: 'object', additionalProperties: false, required: ['referinta','linie','numar','imagine'], properties: { referinta: { type: 'string' }, linie: { type: 'integer', minimum: 1 }, numar: { type: 'integer', minimum: 1, maximum: 100 }, imagine: { type: ['integer','null'] } } }),
@@ -153,8 +157,8 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
         } catch (e) { return { eroare: String((e as Error).message) }; }
       },
     }),
-    ...agentBuilderTools(c, userId, email),
-    ...actionTools(c, userId),
+    ...(mode === "future" ? {} : agentBuilderTools(c, userId, email)),
+    ...(mode === "future" ? {} : actionTools(c, userId)),
     ...memoryTools(c, userId, threadId),
   };
   const memory = await loadMemory(c);
@@ -182,7 +186,7 @@ async function handleChat(req: Request, c: ReturnType<typeof makeClients>, userI
     model: smart,
     // The SDK does not recognise the gateway slug as a reasoning model; without forceReasoning it drops reasoningEffort.
     maxOutputTokens: 32000,
-    instructions: instructions(today) + `\nMemorie permanentă Coral (reguli din toate conversațiile):\n${memory}\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: attachmentManifest(context.recent).some(r => r.reference === f.reference) ? 'Context recent' : summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
+    instructions: instructions(today) + (mode === "future" ? futureInstructions(today) : "") + `\nMemorie permanentă Coral (reguli din toate conversațiile):\n${memory}\nConversația: ${threadId}. Memorie comprimată (detalii recuperabile):\n${context.summary}\nManifest documente:\n${compactData(manifest.map(f => ({ ...f, summary: attachmentManifest(context.recent).some(r => r.reference === f.reference) ? 'Context recent' : summaries.get(f.reference) ?? 'Nesintetizat; recitește originalul.' })))}`,
     maxRetries: 0,
     messages: await convertToModelMessages(history),
     tools,
@@ -680,6 +684,21 @@ Deno.serve(async (req) => {
         try { return json(await radarSnapshot(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
+      case 'voice_transcribe': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const body = await req.json().catch(() => ({}));
+        if (typeof body.audio !== 'string' || body.audio.length > Math.ceil(COPILOT_LIMITS.audioBytes * 4 / 3) + 4) return json({ error: 'Înregistrarea e prea lungă sau invalidă.' }, 400);
+        let bytes;
+        try { bytes = decodeBase64(body.audio); }
+        catch { return json({ error: 'Înregistrare invalidă.' }, 400); }
+        if (!bytes.length) return speechRetryResponse(corsHeaders);
+        if (bytes.length > COPILOT_LIMITS.audioBytes) return json({ error: 'Înregistrarea e prea lungă.' }, 400);
+        const type = /^audio\/[a-z0-9.+-]+/i.exec(String(body.type ?? ''))?.[0] ?? 'audio/webm';
+        try {
+          const question = transcriptText(await transcribeAudio({ model: 'openai/gpt-transcribe', file: new Blob([bytes], { type }), language: 'ro' }));
+          return question ? json({ question }) : speechRetryResponse(corsHeaders);
+        } catch (error) { return json({ error: error instanceof GatewayError ? `Nu am înțeles înregistrarea (${error.code}).` : friendlyError(error) }, 400); }
+      }
       case 'viziune_copilot': {
         // Same admin-validated read capabilities as the main chat, plus the current 3D picture.
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
@@ -798,12 +817,22 @@ Deno.serve(async (req) => {
       case "summary":
         return await handleSummary(c, url.searchParams.get("refresh") === "1");
       case "threads": {
-        const { data, error } = await c.cloud.from("argus_threads").select("id,title,updated_at").eq("user_id", userId).order("updated_at", { ascending: false }).limit(100);
-        if (error) throw error;
-        return json(data);
+        const mode = url.searchParams.has("mode") ? argusMode(url.searchParams.get("mode")) : null;
+        const rows: unknown[] = [];
+        for (let from = 0; ; from += 1000) {
+          let query = c.cloud.from("argus_threads").select("id,title,updated_at,mode").eq("user_id", userId);
+          if (mode) query = query.eq("mode", mode);
+          const { data, error } = await query.order("updated_at", { ascending: false }).order("id").range(from, from + 999);
+          if (error) throw error;
+          rows.push(...(data ?? []));
+          if ((data?.length ?? 0) < 1000) break;
+        }
+        return json(rows);
       }
       case "create_thread": {
-        const { data, error } = await c.cloud.from("argus_threads").insert({ user_id: userId }).select("id,title,updated_at").single();
+        if (req.method !== "POST") return json({ error: "Metodă invalidă." }, 405);
+        const mode = argusMode((await req.json()).mode);
+        const { data, error } = await c.cloud.from("argus_threads").insert({ user_id: userId, mode }).select("id,title,updated_at,mode").single();
         if (error) throw error;
         return json(data);
       }
@@ -816,7 +845,7 @@ Deno.serve(async (req) => {
       }
       case "messages": {
         const id = url.searchParams.get("id") ?? "";
-        const { data: th } = await c.cloud.from("argus_threads").select("id,title").eq("id", id).eq("user_id", userId).maybeSingle();
+        const { data: th } = await c.cloud.from("argus_threads").select("id,title,mode").eq("id", id).eq("user_id", userId).maybeSingle();
         if (!th) return json({ error: "Conversația nu există" }, 404);
         const data = await readChatHistory<{ id: string; message: UIMessage }>((from, to) =>
           c.cloud.from("argus_messages").select("id,message").eq("thread_id", id)

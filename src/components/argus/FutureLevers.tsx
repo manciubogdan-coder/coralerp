@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Sparkles, Globe, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Sparkles, Globe, Loader2, Mic } from "lucide-react";
 import { argusFetch } from "@/lib/argusApi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ export default function FutureLevers({ base, what, breakEven, months, onApply }:
   base: Structure; what: Structure; breakEven: number | null; months: number;
   onApply: (pct: Partial<Record<CostKey, number>>, feeDelta: number) => void;
 }) {
+  const navigate = useNavigate();
   const [levers, setLevers] = useState<Levers>({});
   const [fee, setFee] = useState(0);
   const [note, setNote] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export default function FutureLevers({ base, what, breakEven, months, onApply }:
     <Card>
       <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Sparkles className="h-4 w-4" />Viitor: legi, taxe și scumpiri — ce mă costă și ce fac</CardTitle></CardHeader>
       <CardContent className="space-y-3 text-sm">
+        <Button variant="outline" className="h-auto whitespace-normal" onClick={() => navigate('/administrativ/argus/viitor')}><Mic className="mr-2 h-4 w-4 shrink-0" />Vorbește cu Argus Viitor</Button>
         <div className="rounded border border-primary p-2 space-y-2">
           <Button size="sm" onClick={runScan} disabled={scanning}>{scanning ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Globe className="mr-1 h-4 w-4" />}{scanning ? "Argus caută legile și scumpirile… (1–2 minute)" : "Argus: caută singur ce urmează și calculează"}</Button>
           <p className="text-xs text-muted-foreground">Caută pe internet legile și scumpirile anunțate, completează procentele de mai jos și le aplică pe costurile tale reale din perioada aleasă.</p>

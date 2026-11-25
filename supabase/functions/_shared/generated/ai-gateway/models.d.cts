@@ -4195,7 +4195,7 @@ export interface components {
                 token?: string;
             }[];
             segment_id?: string;
-
+            
             type: "transcript.text.delta";
         };
         Output_TranscriptTextDoneEvent: {
@@ -4206,25 +4206,25 @@ export interface components {
                 token?: string;
             }[];
             text: string;
-
+            
             type: "transcript.text.done";
             usage?: components["schemas"]["Output_TranscriptTextUsageTokens"];
         };
         Output_TranscriptTextSegmentEvent: {
-
+            
             end: number;
             id: string;
             speaker: string;
-
+            
             start: number;
             text: string;
-
+            
             type: "transcript.text.segment";
         };
         Output_TranscriptTextUsageDuration: {
-
+            
             seconds: number;
-
+            
             type: "duration";
         };
         Output_TranscriptTextUsageTokens: {
@@ -4235,15 +4235,15 @@ export interface components {
             input_tokens: number;
             output_tokens: number;
             total_tokens: number;
-
+            
             type: "tokens";
         };
         TranscriptionEvent: components["schemas"]["Output_CreateTranscriptionResponseStreamEvent"] | components["schemas"]["GatewayErrorResponse"];
-
+        
         TranscriptionInclude: "logprobs";
         TranscriptionRequest: {
             chunking_strategy?: ("auto" | components["schemas"]["VadConfig"]) | null;
-
+            
             file: Blob;
             include?: components["schemas"]["TranscriptionInclude"][];
             keywords?: string[];
@@ -4251,26 +4251,26 @@ export interface components {
             known_speaker_references?: string[];
             language?: string;
             languages?: string[];
-
+            
             model: "openai/gpt-transcribe";
             prompt?: string;
-
+            
             response_format?: "json" | "text";
             stream?: boolean | null;
-
+            
             temperature?: number;
-
+            
             timestamp_granularities?: ("word" | "segment")[];
         };
         TranscriptionResponse: components["schemas"]["Output_CreateTranscriptionResponseJson"] | string;
         VadConfig: {
-
+            
             prefix_padding_ms?: number;
-
+            
             silence_duration_ms?: number;
-
+            
             threshold?: number;
-
+            
             type: "server_vad";
         };
     };
