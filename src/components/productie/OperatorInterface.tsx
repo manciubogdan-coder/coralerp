@@ -35,6 +35,8 @@ import OrderPackaging from './OrderPackaging';
 import { loadAutomaticRestock, offerRestockAtStart } from '@/lib/productie/restockAllocationMode';
 import { useProductionRealtime } from '@/hooks/productie/useProductionRealtime';
 import { useAutoRefresh } from '@/hooks/productie/useAutoRefresh';
+import HorecaOrdersView from './HorecaOrdersView';
+import { horecaOrderGroup, isHorecaLine } from '../../../supabase/functions/_shared/horecaRules';
 
 interface OperatorInterfaceProps {
   selectedLine: string;
@@ -131,9 +133,14 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   } = useProductionLines();
 
   const {
-    data: orders,
+    data: rawOrders,
     isLoading: ordersLoading
   } = useOrders(selectedDay);
+
+  const horecaLine = lines?.find(isHorecaLine);
+  // Keep the display projection local: finished sessions retain their real line.
+  const orders = rawOrders?.map(order => horecaLine && horecaOrderGroup(order)
+    ? { ...order, linie_id: horecaLine.id } : order);
 
   const createSessionMutation = useCreateWorkSession();
   const finishSessionMutation = useFinishWorkSession();
@@ -141,7 +148,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   const {
     data: workSessions,
     isLoading: sessionsLoading
-  } = useWorkSessions();
+  } = useWorkSessions(selectedDay);
 
   const { data: groupMap } = useGrupareAmbalare();
   const stockProductIds = Array.from(new Set((orders || []).map(o => o.produs_id).filter(Boolean))).sort();
@@ -335,6 +342,7 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
   };
 
   const handleOrderSelect = (orderId: string) => {
+    if (isHorecaLine(currentLineObj) || horecaOrderGroup(rawOrders?.find(o => o.id === orderId))) { setView('orders'); return; }
     setCurrentOrderId(orderId);
     setView('session');
   };
@@ -727,6 +735,18 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
       )}
     </>
   );
+
+  if (view === 'orders' && isHorecaLine(currentLineObj)) {
+    return <div className="space-y-4 pb-24">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" onClick={() => setView('lines')}><ArrowLeft className="mr-2 h-4 w-4" />Linii</Button>
+        <h2 className="text-2xl font-bold">HoReCa</h2>
+        <DateProductiePicker value={selectedDay} onChange={setSelectedDay} label="" />
+      </div>
+      {dayGuard}
+      <HorecaOrdersView key={selectedDay} orders={(orders || []).filter(o => matchesSelectedDay(o) && horecaOrderGroup(o))} sessions={workSessions || []} day={selectedDay} />
+    </div>;
+  }
 
   if (view === 'session' && currentOrderId) {
     const currentOrder = orders?.find(o => o.id === currentOrderId);
@@ -1342,6 +1362,18 @@ const OperatorInterface: React.FC<OperatorInterfaceProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {displayLines.map((line) => {
+          if (isHorecaLine(line)) {
+            const rows = (orders || []).filter(o => matchesSelectedDay(o) && horecaOrderGroup(o));
+            const remainingGroups = new Set(rows.filter(o => !isOrderDone(o)).map(horecaOrderGroup));
+            const groups = new Set(rows.map(horecaOrderGroup));
+            return <Card key={line.id}>
+              <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Factory className="h-5 w-5" />HoReCa</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="text-sm text-muted-foreground">{groups.size} comenzi · {remainingGroups.size} de terminat · {new Set(rows.map(o => o.produs_id)).size} produse</div>
+                <Button className="w-full" onClick={() => handleLineSelect(line.id)}>Deschide HoReCa</Button>
+              </CardContent>
+            </Card>;
+          }
           const activeSession = activeSessions.find(session => line.memberIds.includes(session.linie_id));
           // Calculez comenzile pentru fiecare linie individual
           // De lucrat = comenzi care nu sunt completed ȘI nu sunt complet acoperite (din producție + restock)

@@ -15,6 +15,7 @@ import { cancellationPatch, isErpCancellationApplied } from './cancellation.ts';
 import { findCarton, expandCarton, type MixedCarton } from '../_shared/mixedCartons.ts';
 import { cartonNameUnit } from './cartonUnit.ts';
 import { findAbsorbPairs, applyAbsorb } from './absorb.ts';
+import { loadHorecaRouting, reconcileHorecaRouting } from '../_shared/horecaRouting.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -241,6 +242,7 @@ Deno.serve(async (req) => {
     .toISOString()
     .slice(0, 10);
 
+  const horecaRouting = await loadHorecaRouting(supabase);
   // Preîncarc liniile de producție active (pentru auto-distribuire)
   const { data: liniiActive } = await supabase
     .from("productie_linii")
@@ -255,7 +257,8 @@ Deno.serve(async (req) => {
     .select("produs_id, linie_preferata_id, prioritate")
     .order("prioritate");
   const reguliByProdus = new Map<string, string>();
-  const liniiActiveIds = new Set((liniiActive || []).map((l: any) => l.id));
+  // HoReCa is client-specific, never a product's general fallback line.
+  const liniiActiveIds = new Set((liniiActive || []).filter((l: any) => l.id !== horecaRouting.lineId).map((l: any) => l.id));
   (reguliData || []).forEach((r: any) => {
     if (!reguliByProdus.has(r.produs_id) && liniiActiveIds.has(r.linie_preferata_id)) {
       reguliByProdus.set(r.produs_id, r.linie_preferata_id);
@@ -452,7 +455,7 @@ Deno.serve(async (req) => {
       // (în loc de o interogare per linie, care depășea limita de procesor).
       const { data: existingRows, error: existingRowsError } = await supabase
         .from("productie_comenzi")
-        .select("id, extern_nr_aviz, cantitate, status, magazin, data_productie, produs_id, numar_comanda, cantitate_din_restock")
+        .select("id, extern_nr_aviz, cantitate, status, magazin, punct_livrare, linie_id, data_productie, produs_id, numar_comanda, cantitate_din_restock")
         .eq("sursa", "senior-erp")
         .like("extern_nr_aviz", `${aviz.nr_aviz}::%`);
       if (existingRowsError) throw existingRowsError;
@@ -547,6 +550,11 @@ Deno.serve(async (req) => {
           const isPending = status === "pending";
 
           const patch: any = {};
+          if (!directPicking.has(String(produsId)) && horecaRouting.lookup({ magazin: numeMagazin, punct_livrare: punctLivrare }) &&
+              (status !== 'completed' || delta > 0) && ex.linie_id !== horecaRouting.lineId) {
+            patch.linie_id = horecaRouting.lineId;
+            if (isPending) patch.status = 'assigned';
+          }
           if (ex.magazin !== numeMagazin) {
             patch.magazin = numeMagazin;
             patch.punct_livrare = punctLivrare;
@@ -656,6 +664,9 @@ Deno.serve(async (req) => {
         let linieId: string | null = null;
         if ((cantitateRamasa === 0 && cantitate > 0) || directPicking.has(String(produsId))) {
           statusFinal = "completed";
+        } else if (horecaRouting.lookup({ magazin: numeMagazin, punct_livrare: punctLivrare })) {
+          linieId = horecaRouting.lineId;
+          statusFinal = 'assigned';
         } else {
           const linieRegula = reguliByProdus.get(produsId) || linieByIstoric.get(produsId);
           if (linieRegula) {
@@ -861,6 +872,13 @@ Deno.serve(async (req) => {
     }
   } catch (e: any) { errors.push({ absorbtie: e.message || String(e) }); }
 
+  // Repair older distributed orders and active sessions, without rewriting finished work.
+  let horeca: Awaited<ReturnType<typeof reconcileHorecaRouting>> | null = null;
+  try {
+    horeca = await reconcileHorecaRouting(supabase, directPicking, [...absorbDays]);
+    if (horeca.failures.length) errors.push({ horeca: horeca.failures });
+  } catch (e: any) { errors.push({ horeca: e.message || String(e) }); }
+
   // Log rulare
   await supabase.from("erp_import_log").insert({
     avize_primite: payload.avize.length,
@@ -880,7 +898,7 @@ Deno.serve(async (req) => {
     bridge_host: payload.bridge_host || null,
   });
 
-  return json({ absorptions,
+  return json({ absorptions, horeca,
     ok: true,
     avize_primite: payload.avize.length,
     comenzi_create: created,

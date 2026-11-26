@@ -12,6 +12,8 @@ export const DIRECT_PICKING_KEY = ['productie-direct-picking'] as const;
 import { loadMixedCartons } from './useMixedCartons';
 import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 import { readAll } from '../../../supabase/functions/_shared/productRecipes';
+import { loadHorecaRouting } from '../../../supabase/functions/_shared/horecaRouting';
+import { createHorecaClientLookup } from '../../../supabase/functions/_shared/horecaRules';
 
 
 // Types pentru datele de producție
@@ -222,15 +224,17 @@ export const useAutoDistributeToLine = () => {
       for (let i = 0; i < ids.length; i += 50) {
         const { data, error } = await supabase
           .from('productie_comenzi')
-          .select('id, produs_id, numar_comanda')
+          .select('id, produs_id, numar_comanda, magazin, punct_livrare, tip_comanda, cantitate, status')
           .in('id', ids.slice(i, i + 50));
         if (error) throw error;
         comenzi.push(...(data || []));
       }
       // Produsele „direct în picking” nu se distribuie pe linii.
       const direct = await queryClient.fetchQuery({ queryKey: DIRECT_PICKING_KEY, staleTime: 60_000, queryFn: loadDirectPickingIds });
-      for (let i = comenzi.length - 1; i >= 0; i--) if (direct.has(String(comenzi[i].produs_id))) comenzi.splice(i, 1);
+      for (let i = comenzi.length - 1; i >= 0; i--) if (direct.has(String(comenzi[i].produs_id)) ||
+        Number(comenzi[i].cantitate) <= 0 || comenzi[i].status === 'completed') comenzi.splice(i, 1);
       if (comenzi.length === 0) return { distribuite: 0, esuate: [] as string[] };
+      const horeca = await loadHorecaRouting(supabase);
 
       const produsIds = Array.from(new Set(comenzi.map((c) => c.produs_id).filter(Boolean)));
       const [{ data: linii, error: liniiError }, reguli] = await Promise.all([
@@ -252,12 +256,12 @@ export const useAutoDistributeToLine = () => {
       if (liniiError) throw liniiError;
 
       const liniiActive = new Map((linii || []).map((l: any) => [l.id, l]));
-      const fallback = (linii || [])[0];
+      const fallback = (linii || []).find((l: any) => l.id !== horeca.lineId);
       if (!fallback) throw new Error('Nu există linii active disponibile pentru distribuire');
 
       const liniePeProdus = new Map<string, string>();
       reguli.forEach((r: any) => {
-        if (!liniePeProdus.has(r.produs_id) && liniiActive.has(r.linie_preferata_id)) {
+        if (r.linie_preferata_id !== horeca.lineId && !liniePeProdus.has(r.produs_id) && liniiActive.has(r.linie_preferata_id)) {
           liniePeProdus.set(r.produs_id, r.linie_preferata_id);
         }
       });
@@ -265,9 +269,9 @@ export const useAutoDistributeToLine = () => {
       // Grupăm pe linie ca să facem câte o singură actualizare pe linie.
       const peLinie = new Map<string, string[]>();
       comenzi.forEach((c) => {
-        const linieId = liniePeProdus.get(c.produs_id) || fallback.id;
+        const linieId = horeca.lookup(c) ? horeca.lineId : liniePeProdus.get(c.produs_id) || fallback.id;
         if (!peLinie.has(linieId)) peLinie.set(linieId, []);
-        peLinie.get(linieId)!.push(c.id);
+        peLinie.get(linieId)?.push(c.id);
       });
 
       const esuate: string[] = [];
@@ -614,6 +618,7 @@ export const useOrders = (day?: string) => {
       ]);
 
       const clientiMap = new Map<string, any>();
+      const horecaLookup = createHorecaClientLookup(clients);
       clients.forEach((c: any) => {
         clientiMap.set(`${c.nume_magazin}||${c.punct_livrare}`, c);
       });
@@ -635,6 +640,7 @@ export const useOrders = (day?: string) => {
         return applyDirectPicking({
           ...comanda,
           productie_clienti: client,
+          horeca_group: horecaLookup(comanda),
           cantitate_din_restock: cantitateDinRestock,
           cantitate_reala_produsa: cantitateRealaProadusa,
           cantitate_produsa_sesiuni: totalProdusDinSesiuni,
@@ -845,12 +851,16 @@ export const useCreateOrder = () => {
       console.log('🆕 Creez comandă nouă:', orderData);
       const definitions = await loadMixedCartons();
       const carton = findCarton(definitions, orderData.produs_id);
+      const [horeca, directIds] = await Promise.all([loadHorecaRouting(supabase), loadDirectPickingIds()]);
+      const assignedLine = horeca.lookup(orderData) && !directIds.has(orderData.produs_id) && orderData.cantitate > 0
+        ? horeca.lineId : orderData.linie_id || null;
       if (carton) {
         const components = expandCarton(carton, orderData.cantitate);
         const { data, error } = await supabase.from('productie_comenzi').insert(components.map(c => ({
           ...orderData, produs_id: c.produs_id, cantitate: c.quantity,
           baxare: String(c.units), numar_comanda: '', cantitate_din_restock: 0,
-          status: orderData.status ?? 'pending', linie_id: orderData.linie_id ?? null,
+          status: assignedLine ? 'assigned' : orderData.status ?? 'pending',
+          linie_id: horeca.lookup(orderData) && !directIds.has(c.produs_id) ? horeca.lineId : orderData.linie_id ?? null,
         }))).select();
         if (error) throw error;
         const first = data?.[0];
@@ -934,8 +944,8 @@ export const useCreateOrder = () => {
           produs_id: orderData.produs_id,
           cantitate: orderData.cantitate,
           baxare: orderData.baxare || undefined,
-          linie_id: orderData.linie_id || null,
-          status: statusFinal,
+          linie_id: assignedLine,
+          status: assignedLine === horeca.lineId && statusFinal === 'pending' ? 'assigned' : statusFinal,
           cantitate_din_restock: esteReambalare ? 0 : cantitatedinRestock,
           tip_comanda: orderData.tip_comanda,
           data_productie: orderData.data_productie || null,
@@ -1008,6 +1018,15 @@ export const useUpdateOrder = () => {
       console.log('🔄 === ACTUALIZARE COMANDĂ ===');
       console.log('📊 ID comandă:', id);
       console.log('📋 Actualizări:', updates);
+      if ('linie_id' in updates || 'magazin' in updates || 'punct_livrare' in updates || 'produs_id' in updates) {
+        const { data: current, error } = await supabase.from('productie_comenzi').select('*').eq('id', id).single();
+        if (error) throw error;
+        const [horeca, direct] = await Promise.all([loadHorecaRouting(supabase), loadDirectPickingIds()]);
+        const merged = { ...current, ...updates };
+        if (merged.status !== 'completed' && Number(merged.cantitate) > 0 && horeca.lookup(merged) && !direct.has(String(merged.produs_id))) {
+          updates = { ...updates, linie_id: horeca.lineId };
+        }
+      }
       
       // VALIDARE NOUĂ: Nu permite setarea statusului "completed" dacă nu este 100% finalizată
       if (updates.status === 'completed') {
@@ -1174,17 +1193,23 @@ export const useDeleteOrder = () => {
 };
 
 // Hook pentru sesiunile de lucru
-export const useWorkSessions = () => {
+export const useWorkSessions = (day?: string) => {
   return useQuery({
-    queryKey: ['work-sessions'],
+    queryKey: day ? ['work-sessions', day] : ['work-sessions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('productie_sesiuni_lucru')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as ProductieSesiuneLucru[];
+      const data: any[] = [];
+      const center = day ? new Date(`${day}T12:00:00Z`) : null;
+      const from = center ? new Date(center.getTime() - 36 * 3600000).toISOString() : '';
+      const to = center ? new Date(center.getTime() + 36 * 3600000).toISOString() : '';
+      for (let offset = 0; ; offset += 1000) {
+        let query = supabase.from('productie_sesiuni_lucru').select('*');
+        if (day) query = query.or(`status.eq.activa,and(ora_start.gte.${from},ora_start.lt.${to})`);
+        const { data: rows, error } = await query.order('id').range(offset, offset + 999);
+        if (error) throw error;
+        data.push(...(rows || []));
+        if (!rows || rows.length < 1000) break;
+      }
+      return data.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at))) as ProductieSesiuneLucru[];
     }
   });
 };
@@ -1200,6 +1225,13 @@ export const useCreateWorkSession = () => {
       nume_operator: string;
       numar_angajati: number;
     }) => {
+      const { data: order, error: readError } = await supabase.from('productie_comenzi').select('magazin,punct_livrare,tip_comanda,produs_id').eq('id', sessionData.comanda_id).single();
+      if (readError) throw readError;
+      const [horeca, direct] = await Promise.all([loadHorecaRouting(supabase), loadDirectPickingIds()]);
+      if (horeca.lookup(order)) {
+        if (direct.has(String(order.produs_id))) throw new Error('Produsul este gata ambalat și rămâne direct în Picking.');
+        sessionData = { ...sessionData, linie_id: horeca.lineId };
+      }
       const { data, error } = await supabase
         .from('productie_sesiuni_lucru')
         .insert([sessionData])
@@ -1224,12 +1256,14 @@ export const useFinishWorkSession = () => {
       id, 
       cantitate_produsa, 
       status,
-      comanda_id
+      comanda_id,
+      verifyWrites = false
     }: { 
       id: string; 
       cantitate_produsa: number; 
       status: 'finalizata' | 'partial';
       comanda_id: string;
+      verifyWrites?: boolean;
     }) => {
       console.log('🔄 ÎNCEPE finalizarea sesiunii:', { id, cantitate_produsa, status, comanda_id });
       
@@ -1274,6 +1308,7 @@ export const useFinishWorkSession = () => {
 
       if (sesiuniErr) {
         console.error('❌ Eroare la citirea sesiunilor pentru comandă:', sesiuniErr);
+        if (verifyWrites) throw sesiuniErr;
       }
 
       const totalProdus = (sesiuniLucru || []).reduce((acc, s) => acc + Number(s.cantitate_produsa || 0), 0);
@@ -1374,6 +1409,7 @@ export const useFinishWorkSession = () => {
         .eq('id', comanda_id);
       if (updProdErr) {
         console.error('❌ Eroare la setarea cantității reale produse:', updProdErr);
+        if (verifyWrites) throw updProdErr;
       }
 
       // Calculez surplusul acestei sesiuni (ce nu încape în comandă)
@@ -1403,7 +1439,10 @@ export const useFinishWorkSession = () => {
             .from('productie_restocari')
             .update({ cantitate_surplus: Number(lotExistent.cantitate_surplus || 0) + surplusDinAceastaSesiune })
             .eq('id', lotExistent.id);
-          if (updPoolErr) console.error('❌ EROARE la actualizarea restocării:', updPoolErr);
+          if (updPoolErr) {
+            console.error('❌ EROARE la actualizarea restocării:', updPoolErr);
+            if (verifyWrites) throw updPoolErr;
+          }
         } else {
           const { error: restockingError } = await supabase
             .from('productie_restocari')
@@ -1414,7 +1453,10 @@ export const useFinishWorkSession = () => {
               data_productie: ziPool,
               status: 'disponibil'
             }]);
-          if (restockingError) console.error('❌ EROARE la crearea restocării:', restockingError);
+          if (restockingError) {
+            console.error('❌ EROARE la crearea restocării:', restockingError);
+            if (verifyWrites) throw restockingError;
+          }
         }
       }
 
@@ -1433,6 +1475,7 @@ export const useFinishWorkSession = () => {
           .eq('id', comanda_id);
         if (updateError) {
           console.error('❌ Eroare la actualizarea statusului comenzii:', updateError);
+          if (verifyWrites) throw updateError;
         } else {
           console.log('✅ Comanda marcată ca finalizată în baza de date');
         }
@@ -1443,6 +1486,7 @@ export const useFinishWorkSession = () => {
           .eq('id', comanda_id);
         if (updateError) {
           console.error('❌ Eroare la actualizarea statusului comenzii la partial:', updateError);
+          if (verifyWrites) throw updateError;
         } else {
           console.log('✅ Comanda marcată ca parțială în baza de date');
         }
