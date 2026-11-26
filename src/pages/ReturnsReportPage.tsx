@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Download, RotateCcw, X } from 'lucide-react';
 import BackToHubButton from '@/components/BackToHubButton';
 import { argusFetch } from '@/lib/argusApi';
-import { enrich, groupBy, shippedBy, REASON_CATEGORIES, type EnrichedReturn, type Group, type ReturnLine, type ShippedRow, type ShippedDay } from '@/lib/returns/returnsReport';
+import { enrich, groupBy, shippedBy, returnRateBreakdown, REASON_CATEGORIES, type EnrichedReturn, type Group, type ReturnLine, type ShippedRow, type ShippedDay } from '@/lib/returns/returnsReport';
 
 const iso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const lei = (v: number) => v.toLocaleString('ro-RO', { maximumFractionDigits: 0 }) + ' lei';
@@ -60,7 +60,8 @@ const ReturnsReportPage: React.FC = () => {
   const byStore = useMemo(() => groupBy(lines, (l) => l.partner, shippedBy(ship, (r) => r.partner)), [lines, ship]);
   const byArt = useMemo(() => groupBy(lines, (l) => l.art, shippedBy(ship, (r) => r.art)), [lines, ship]);
   const byCat = useMemo(() => groupBy(lines, (l) => l.category), [lines]);
-  const byReason = useMemo(() => groupBy(lines, (l) => l.reasonText), [lines]);
+  const rateByCategory = useMemo(() => returnRateBreakdown(lines, shipV), [lines, shipV]);
+  const rateByReason = useMemo(() => returnRateBreakdown(lines, shipV, (l) => l.reasonText), [lines, shipV]);
   const byDay = useMemo(() => {
     const m = new Map<string, { day: string; v: number; shipV: number }>();
     for (const d of data?.shippedDays ?? []) m.set(d.day, { day: d.day, v: 0, shipV: Number(d.v) || 0 });
@@ -96,7 +97,8 @@ const ReturnsReportPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byClient, 'Client')), 'Clienți');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byStore, 'Magazin')), 'Magazine');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byArt, 'Produs')), 'Produse');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byReason, 'Motiv')), 'Motive');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(rateByReason, 'Motiv')), 'Motive');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rateByCategory.map((r) => ({ Categorie: r.key, 'Valoare returnată (lei)': +r.v.toFixed(2), 'Contribuție la rata de retur %': r.rateV == null ? null : +(r.rateV * 100).toFixed(2), 'Pondere din retururi %': r.shareV == null ? null : +(r.shareV * 100).toFixed(2) }))), 'Rată pe motive');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines.map((l) => ({ 'Zi producție / expediție': l.delivered, 'Zi livrare / refuz': l.day, Aviz: l.doc, Client: l.client, Magazin: l.partner, Produs: l.art, 'Operator principal': [...new Set((l.production ?? []).map((w) => w.operator))].join(', ') || 'Neidentificat', Linie: [...new Set((l.production ?? []).map((w) => w.line))].join(', ') || 'Neidentificată', Cantitate: l.q, 'Valoare (lei)': +l.v.toFixed(2), Motiv: l.reasonText, Categorie: l.category }))), 'Linii');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines.flatMap((l) => (l.production ?? []).map((w) => ({ 'Aviz refuz': l.doc, Magazin: l.partner, Produs: l.art, 'Zi producție': w.day, 'Comandă producție': w.order, 'Operator principal': w.operator, Linie: w.line, 'Persoane în echipă': w.employees, 'Cantitate produsă în sesiune': w.quantity, Start: w.start, Stop: w.end, 'Asociere': 'Produs + magazin + zi; nu lot confirmat' })))), 'Producție');
     XLSX.writeFile(wb, `Retururi_${data?.start}_${data?.end}.xlsx`);
@@ -105,12 +107,12 @@ const ReturnsReportPage: React.FC = () => {
   const chips = Object.entries(f).filter(([, v]) => v) as [keyof Filter, string][];
   const chipLabel: Record<keyof Filter, string> = { client: 'Client', store: 'Magazin', art: 'Produs', category: 'Cauză' };
 
-  const GroupTable = ({ rows, label, onPick, rateCol = true }: { rows: Group[]; label: string; onPick?: (k: string) => void; rateCol?: boolean }) => (
+  const GroupTable = ({ rows, label, onPick, rateCol = true, contribution = false }: { rows: Group[]; label: string; onPick?: (k: string) => void; rateCol?: boolean; contribution?: boolean }) => (
     <div className="max-h-[520px] overflow-auto rounded-md border">
       <table className="w-full text-sm">
         <thead className="sticky top-0 bg-muted z-10"><tr className="text-left">
           <th className="p-2">{label}</th><th className="p-2 text-right">Rânduri</th><th className="p-2 text-right">Cant. returnată</th><th className="p-2 text-right">Valoare returnată</th><th className="p-2 text-right">% din retururi</th>
-          {rateCol && <><th className="p-2 text-right">Livrat (lei)</th><th className="p-2 text-right">Rată retur</th></>}
+          {rateCol && <><th className="p-2 text-right">Livrat (lei)</th><th className="p-2 text-right">{contribution ? 'Contribuție la rata de retur' : 'Rată retur'}</th></>}
         </tr></thead>
         <tbody>{rows.map((r) => (
           <tr key={r.key} className={`border-t ${onPick ? 'cursor-pointer hover:bg-muted/50' : ''}`} onClick={() => onPick?.(r.key)}>
@@ -164,6 +166,24 @@ const ReturnsReportPage: React.FC = () => {
           ].map(([t, v]) => <Card key={t}><CardHeader className="p-3 pb-1"><CardDescription>{t}</CardDescription><CardTitle className="text-xl">{v}</CardTitle></CardHeader></Card>)}
         </div>
 
+        <section aria-label="Descompunerea ratei de retur" className="space-y-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold">Din ce se compune rata de retur</h2>
+            <span className="text-sm font-semibold">{f.category ? 'Cauza aleasă' : 'Total'}: {pct(rate)}</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Fiecare procent = valoarea returnată pentru acel motiv ÷ aceeași valoare livrată. Procentele se adună la rata de retur de mai sus; „% din retururi” arată ponderea motivului în retururi, nu în livrări. Pot apărea diferențe de 0,01 din rotunjire.</p>
+          <div className="overflow-x-auto border rounded-md">
+            <table className="w-full text-sm">
+              <thead className="bg-muted"><tr className="text-left"><th className="p-2">Motiv</th><th className="p-2 text-right">Valoare returnată</th><th className="p-2 text-right">Contribuție la rata de retur</th><th className="p-2 text-right">% din retururi</th></tr></thead>
+              <tbody>{rateByCategory.map((r) => <tr key={r.key} className="border-t">
+                <td className="p-2"><Button variant="link" className="h-auto p-0 text-left whitespace-normal" onClick={() => setF({ ...f, category: f.category === r.key ? undefined : r.key })}>{r.key}</Button></td>
+                <td className="p-2 text-right whitespace-nowrap">{lei(r.v)}</td><td className="p-2 text-right font-semibold whitespace-nowrap">{pct(r.rateV)}</td><td className="p-2 text-right text-muted-foreground whitespace-nowrap">{pct(r.shareV)}</td>
+              </tr>)}</tbody>
+              <tfoot className="border-t bg-muted font-semibold"><tr><td className="p-2">{f.category ? 'Total — cauza aleasă' : 'Total'}</td><td className="p-2 text-right whitespace-nowrap">{lei(totV)}</td><td className="p-2 text-right whitespace-nowrap">{pct(rate)}</td><td className="p-2 text-right">{pct(totV > 0 ? 1 : null)}</td></tr></tfoot>
+            </table>
+          </div>
+        </section>
+
         {insights.length > 0 && <Card><CardHeader className="pb-2"><CardTitle className="text-base">Concluzii</CardTitle></CardHeader>
           <CardContent><ul className="list-disc pl-5 space-y-1 text-sm">{insights.map((s) => <li key={s}>{s}</li>)}</ul></CardContent></Card>}
 
@@ -200,7 +220,7 @@ const ReturnsReportPage: React.FC = () => {
           <TabsContent value="clienti"><GroupTable rows={byClient} label="Client" onPick={(k) => setF({ ...f, client: k })} /></TabsContent>
           <TabsContent value="magazine"><GroupTable rows={byStore} label="Magazin" onPick={(k) => setF({ ...f, store: k })} /></TabsContent>
           <TabsContent value="produse"><GroupTable rows={byArt} label="Produs" onPick={(k) => setF({ ...f, art: k })} /></TabsContent>
-          <TabsContent value="motive"><GroupTable rows={byReason} label="Motiv (cum e scris în Senior)" rateCol={false} /></TabsContent>
+          <TabsContent value="motive"><GroupTable rows={rateByReason} label="Motiv (cum e scris în Senior)" contribution /></TabsContent>
           <TabsContent value="linii" className="space-y-2">
             <Input placeholder="Caută magazin, produs, operator, linie, aviz…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
             <p className="text-xs text-muted-foreground">Operatorul principal și linia provin din sesiunile cu producție înregistrată pentru același produs, magazin și zi. Asocierea nu confirmă lotul refuzat și nu dovedește vina operatorului. Cantitățile sesiunilor nu reprezintă cantități refuzate.</p>

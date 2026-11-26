@@ -44,6 +44,16 @@ export function enrich(lines: ReturnLine[], lag: number): EnrichedReturn[] {
 }
 
 export interface Group { key: string; q: number; v: number; n: number; shippedQ: number; shippedV: number; rateV: number | null }
+/** Every reason uses the same filtered shipped value, so contributions sum to the total return rate. */
+export function returnRateBreakdown(lines: EnrichedReturn[], shippedValue: number, key: (l: EnrichedReturn) => string = (l) => l.category) {
+  const total = lines.reduce((sum, l) => sum + l.v, 0);
+  return groupBy(lines, key).map((g) => ({
+    ...g,
+    shippedV: shippedValue,
+    rateV: shippedValue > 0 ? g.v / shippedValue : null,
+    shareV: total > 0 ? g.v / total : null,
+  }));
+}
 /** Sums returns by a key; shipped totals by the same key give the return rate (value returned ÷ value shipped). */
 export function groupBy(lines: EnrichedReturn[], key: (l: EnrichedReturn) => string, shipped?: Map<string, { q: number; v: number }>): Group[] {
   const m = new Map<string, Group>();

@@ -1,8 +1,29 @@
 import { describe, it, expect } from 'bun:test';
-import { reasonCategory, splitPartner, deliveryDay, enrich, groupBy, shippedBy } from '../../src/lib/returns/returnsReport';
+import { reasonCategory, splitPartner, deliveryDay, enrich, groupBy, shippedBy, returnRateBreakdown } from '../../src/lib/returns/returnsReport';
 import { matchProduction, productionDay, type ProductionWork } from '../../supabase/functions/_shared/returnsProduction';
 
 describe('returns report rules', () => {
+  const breakdownLines = enrich([
+    { id: 1, day: '2026-11-02', doc: '1', partner: 'Client', art: 'X', q: 60, v: 600, reason: 'CALITATE' },
+    { id: 2, day: '2026-11-02', doc: '2', partner: 'Client', art: 'X', q: 30, v: 300, reason: 'TRANSPORT' },
+    { id: 3, day: '2026-11-02', doc: '3', partner: 'Client', art: 'X', q: 15, v: 150, reason: '' },
+  ], 1);
+  it('decomposes a 1.05% return rate into 0.60% quality, 0.30% transport and 0.15% unspecified', () => {
+    const rows = returnRateBreakdown(breakdownLines, 100000);
+    expect(rows.find((r) => r.key === 'Calitate')?.rateV).toBeCloseTo(0.006);
+    expect(rows.find((r) => r.key === 'Transport / nelivrat')?.rateV).toBeCloseTo(0.003);
+    expect(rows.find((r) => r.key === 'Fără motiv scris')?.rateV).toBeCloseTo(0.0015);
+    expect(rows.reduce((sum, r) => sum + (r.rateV ?? 0), 0)).toBeCloseTo(0.0105);
+  });
+  it('retains the shipped denominator when a reason is selected, not the returned-value denominator', () => {
+    const rows = returnRateBreakdown(breakdownLines.filter((r) => r.category === 'Calitate'), 100000);
+    expect(rows[0].rateV).toBeCloseTo(0.006);
+    expect(rows[0].shareV).toBe(1);
+  });
+  it('does not invent a rate without positive shipped value', () => {
+    expect(returnRateBreakdown(breakdownLines, 0).every((r) => r.rateV === null)).toBe(true);
+    expect(returnRateBreakdown([], 100000)).toEqual([]);
+  });
   it('goods produced today are refused at delivery tomorrow, without another waiting day', () => {
     expect(productionDay('2026-11-27')).toBe('2026-11-26');
     expect(productionDay('2026-12-01')).toBe('2026-11-30');
