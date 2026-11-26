@@ -318,16 +318,8 @@ export const useClients = () => {
   return useQuery({
     queryKey: ['clients'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('productie_clienti')
-        .select(`
-          *,
-          productie_zone_livrare(*)
-        `)
-        .order('nume_magazin');
-      
-      if (error) throw error;
-      return data as ProductieClient[];
+      const data = await readAll(supabase, 'productie_clienti', '*, productie_zone_livrare(*)');
+      return (data as ProductieClient[]).sort((a, b) => a.nume_magazin.localeCompare(b.nume_magazin, 'ro'));
     }
   });
 };
@@ -452,7 +444,7 @@ export const useCreateClient = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      void refreshProductionQueries(queryClient, ['clients', 'orders']);
     }
   });
 };
@@ -474,7 +466,7 @@ export const useUpdateClient = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      void refreshProductionQueries(queryClient, ['clients', 'orders']);
     }
   });
 };

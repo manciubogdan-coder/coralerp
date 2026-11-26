@@ -10,6 +10,8 @@ import { useClients, useCreateClient, useUpdateClient, useDeleteClient, useDeliv
 import { toast } from 'sonner';
 import { Pencil, Trash2, Plus, MapPin } from 'lucide-react';
 import ClientSearch from './ClientSearch';
+import HorecaClientVerification from './HorecaClientVerification';
+import { horecaGroup } from '../../../supabase/functions/_shared/horecaRules';
 
 const ClientManagement = () => {
   const { data: clients = [], isLoading } = useClients();
@@ -19,6 +21,7 @@ const ClientManagement = () => {
   const deleteClient = useDeleteClient();
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [view, setView] = useState<'clients' | 'horeca'>('horeca');
   const [editingClient, setEditingClient] = useState<any>(null);
   const [formData, setFormData] = useState({
     nume_magazin: '',
@@ -160,6 +163,13 @@ const ClientManagement = () => {
                   placeholder="ex: Carre Vitan, Auchan Titan"
                 />
               </div>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">Grupă HoReCa</legend>
+                <div className="flex flex-wrap gap-2">
+                  {(['Caterin', 'Mircea'] as const).map(group => <Button key={group} type="button" size="sm" aria-pressed={horecaGroup(formData.nickname) === group} variant={horecaGroup(formData.nickname) === group ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, nickname: group })}>{group}</Button>)}
+                  <Button type="button" size="sm" variant={!horecaGroup(formData.nickname) ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, nickname: horecaGroup(formData.nickname) ? '' : formData.nickname })}>În afara HoReCa</Button>
+                </div>
+              </fieldset>
               
               <div>
                 <Label htmlFor="punct_livrare">Punct de Livrare</Label>
@@ -242,6 +252,14 @@ const ClientManagement = () => {
         </Dialog>
       </div>
 
+      <div className="flex gap-2">
+        <Button variant={view === 'horeca' ? 'default' : 'outline'} onClick={() => setView('horeca')}>Verificare HoReCa</Button>
+        <Button variant={view === 'clients' ? 'default' : 'outline'} onClick={() => setView('clients')}>Registru clienți</Button>
+      </div>
+      {view === 'horeca' ? <HorecaClientVerification onEdit={row => {
+        if (row.client) handleEdit(row.client);
+        else { resetForm(); setFormData({ nume_magazin: row.name, punct_livrare: row.point, nickname: '', adresa: '', telefon: '', email: '', zona_livrare_id: '' }); setShowCreateDialog(true); }
+      }} /> : <>
       <ClientSearch 
         searchFilters={searchFilters}
         setSearchFilters={setSearchFilters}
@@ -310,6 +328,7 @@ const ClientManagement = () => {
           </Card>
         )}
       </div>
+      </>}
     </div>
   );
 };
