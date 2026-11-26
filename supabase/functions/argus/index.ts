@@ -674,7 +674,7 @@ Deno.serve(async (req) => {
       }
       case 'returns_report': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
-        try { return json(await returnsReport(c.cloud, await req.json())); }
+        try { return json(await returnsReport(c.cloud, c.legacyUser, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'radar_settings': {

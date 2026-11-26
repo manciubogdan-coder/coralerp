@@ -1,5 +1,6 @@
 // Pure rules for the client returns report (Senior AEC negative lines). No React.
-export interface ReturnLine { id: number | string; day: string; doc: string; partner: string; art: string; q: number; v: number; reason: string }
+import type { ProductionWork } from '../../../supabase/functions/_shared/returnsProduction';
+export interface ReturnLine { id: number | string; day: string; doc: string; partner: string; art: string; q: number; v: number; reason: string; production?: ProductionWork[] }
 export interface ShippedRow { partner: string; art: string; q: number; v: number }
 export interface ShippedDay { day: string; q: number; v: number }
 
@@ -28,7 +29,7 @@ export function splitPartner(name: string): { client: string; store: string } {
   return { client: s.slice(0, i).trim(), store: s.slice(i).replace(/^\s*-\s*/, '').trim() || s };
 }
 
-/** Return seen on Senior day R belongs to the goods produced/shipped on R − lag. */
+/** Compatibility field: this is production/dispatch day, not client delivery day (which equals refusal day). */
 export function deliveryDay(returnDay: string, lag: number): string {
   return new Date(Date.parse(returnDay + 'T00:00:00Z') - lag * 86400000).toISOString().slice(0, 10);
 }

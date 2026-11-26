@@ -29,18 +29,19 @@ function presets() {
   ];
 }
 
-interface Data { start: string; end: string; lag: number; returnStart: string; returnEnd: string; returns: ReturnLine[]; shipped: ShippedRow[]; shippedDays: ShippedDay[] }
+interface Data { start: string; end: string; lag: number; returnStart: string; returnEnd: string; returns: ReturnLine[]; shipped: ShippedRow[]; shippedDays: ShippedDay[]; productionWarning?: string | null }
 type Filter = { client?: string; store?: string; art?: string; category?: string };
 
 const ReturnsReportPage: React.FC = () => {
   const p0 = presets()[0];
-  const [start, setStart] = useState(p0.s); const [end, setEnd] = useState(p0.e); const [lag, setLag] = useState(1);
+  const [start, setStart] = useState(p0.s); const [end, setEnd] = useState(p0.e);
   const [data, setData] = useState<Data | null>(null); const [loading, setLoading] = useState(false); const [err, setErr] = useState('');
   const [f, setF] = useState<Filter>({}); const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true); setErr('');
-    try { setData(await argusFetch<Data>('returns_report', {}, { start, end, lag })); setF({}); }
+    try { setData(await argusFetch<Data>('returns_report', {}, { start, end })); setF({}); }
     catch (e) { setErr((e as Error).message); } finally { setLoading(false); }
   };
 
@@ -83,7 +84,7 @@ const ReturnsReportPage: React.FC = () => {
     if (worstRate && worstRate.key !== cl?.key) out.push(`Cea mai mare rată de retur (clienți cu livrări peste 2.000 lei): ${worstRate.key} — ${pct(worstRate.rateV)}.`);
     const a = byArt[0]; if (a) out.push(`Produsul cel mai returnat: ${a.key} — ${num(a.q)} buc, ${lei(a.v)}.`);
     const top3 = byArt.slice(0, 5).reduce((s, g) => s + g.v, 0); if (byArt.length > 5) out.push(`Primele 5 produse fac ${pct(top3 / totV)} din toate retururile — acolo se câștigă cel mai repede.`);
-    const wd = [...byWeekday].sort((x, y) => y.v - x.v)[0]; if (wd.v > 0) out.push(`Marfa livrată ${wd.n.toLowerCase()} se întoarce cel mai mult (${lei(wd.v)}).`);
+    const wd = [...byWeekday].sort((x, y) => y.v - x.v)[0]; if (wd.v > 0) out.push(`Marfa produsă / expediată ${wd.n.toLowerCase()} se întoarce cel mai mult (${lei(wd.v)}).`);
     const peak = [...byDay].sort((x, y) => y.v - x.v)[0]; if (peak?.v) out.push(`Cea mai proastă zi: marfa din ${fmtDay(peak.day)} — ${lei(peak.v)} returnată.`);
     const none = byCat.find((g) => g.key === 'Fără motiv scris'); if (none) out.push(`${none.n} rânduri (${lei(none.v)}) nu au motiv scris în Senior — cere colegilor să completeze descrierea.`);
     return out;
@@ -96,7 +97,8 @@ const ReturnsReportPage: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byStore, 'Magazin')), 'Magazine');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byArt, 'Produs')), 'Produse');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(g(byReason, 'Motiv')), 'Motive');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines.map((l) => ({ 'Zi livrare': l.delivered, 'Zi retur (Senior)': l.day, Aviz: l.doc, Client: l.client, Magazin: l.partner, Produs: l.art, Cantitate: l.q, 'Valoare (lei)': +l.v.toFixed(2), Motiv: l.reasonText, Categorie: l.category }))), 'Linii');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines.map((l) => ({ 'Zi producție / expediție': l.delivered, 'Zi livrare / refuz': l.day, Aviz: l.doc, Client: l.client, Magazin: l.partner, Produs: l.art, 'Operator principal': [...new Set((l.production ?? []).map((w) => w.operator))].join(', ') || 'Neidentificat', Linie: [...new Set((l.production ?? []).map((w) => w.line))].join(', ') || 'Neidentificată', Cantitate: l.q, 'Valoare (lei)': +l.v.toFixed(2), Motiv: l.reasonText, Categorie: l.category }))), 'Linii');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines.flatMap((l) => (l.production ?? []).map((w) => ({ 'Aviz refuz': l.doc, Magazin: l.partner, Produs: l.art, 'Zi producție': w.day, 'Comandă producție': w.order, 'Operator principal': w.operator, Linie: w.line, 'Persoane în echipă': w.employees, 'Cantitate produsă în sesiune': w.quantity, Start: w.start, Stop: w.end, 'Asociere': 'Produs + magazin + zi; nu lot confirmat' })))), 'Producție');
     XLSX.writeFile(wb, `Retururi_${data?.start}_${data?.end}.xlsx`);
   };
 
@@ -122,7 +124,7 @@ const ReturnsReportPage: React.FC = () => {
   );
 
   const q = search.trim().toLowerCase();
-  const shownLines = q ? lines.filter((l) => `${l.partner} ${l.art} ${l.reasonText} ${l.doc}`.toLowerCase().includes(q)) : lines;
+  const shownLines = q ? lines.filter((l) => `${l.partner} ${l.art} ${l.reasonText} ${l.doc} ${(l.production ?? []).map((w) => `${w.operator} ${w.line} ${w.order}`).join(" ")}`.toLowerCase().includes(q)) : lines;
 
   return (
     <div className="container mx-auto px-2 md:px-6 py-3 md:py-6 space-y-4">
@@ -137,20 +139,17 @@ const ReturnsReportPage: React.FC = () => {
       <Card><CardContent className="pt-4 space-y-3">
         <div className="flex flex-wrap gap-2">{presets().map((p) => <Button key={p.label} size="sm" variant={start === p.s && end === p.e ? 'default' : 'outline'} onClick={() => { setStart(p.s); setEnd(p.e); }}>{p.label}</Button>)}</div>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">Livrat de la<Input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} className="w-40" /></label>
+          <label className="text-sm">Produs / expediat de la<Input type="date" value={start} onChange={(e) => e.target.value && setStart(e.target.value)} className="w-40" /></label>
           <label className="text-sm">până la<Input type="date" value={end} onChange={(e) => e.target.value && setEnd(e.target.value)} className="w-40" /></label>
-          <label className="text-sm">Returul vine după
-            <select className="block h-10 rounded-md border bg-background px-2" value={lag} onChange={(e) => setLag(+e.target.value)}>
-              {[0, 1, 2, 3].map((n) => <option key={n} value={n}>{n === 0 ? 'aceeași zi' : n === 1 ? '1 zi' : `${n} zile`}</option>)}
-            </select></label>
           <Button onClick={load} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}Analizează retururile</Button>
           {data && <Button variant="outline" onClick={exportXlsx}><Download className="h-4 w-4 mr-1" />Excel</Button>}
         </div>
-        {data && <p className="text-xs text-muted-foreground">Marfa livrată {fmtDay(data.start)}–{fmtDay(data.end)} se compară cu retururile din Senior din {fmtDay(data.returnStart)}–{fmtDay(data.returnEnd)} (decalaj {data.lag} zi). Ex.: returul din prima zi a lunii următoare intră la marfa din ultima zi a lunii.</p>}
+        {data && <p className="text-xs text-muted-foreground">Marfa produsă / expediată {fmtDay(data.start)}–{fmtDay(data.end)} ajunge la client {fmtDay(data.returnStart)}–{fmtDay(data.returnEnd)}. Clientul decide la livrare ce acceptă și ce refuză. Refuzul din prima zi a lunii următoare se atribuie producției din ultima zi a lunii selectate.</p>}
         {err && <p className="text-sm text-destructive">{err}</p>}
       </CardContent></Card>
 
       {data && <>
+        {data.productionWarning && <p role="alert" className="text-sm text-destructive">{data.productionWarning}</p>}
         {chips.length > 0 && <div className="flex flex-wrap gap-2 items-center"><span className="text-sm text-muted-foreground">Filtre:</span>
           {chips.map(([k, v]) => <Badge key={k} variant="secondary" className="gap-1 cursor-pointer" onClick={() => setF({ ...f, [k]: undefined })}>{chipLabel[k]}: {v}<X className="h-3 w-3" /></Badge>)}
           <Button size="sm" variant="ghost" onClick={() => setF({})}>Șterge filtrele</Button></div>}
@@ -169,7 +168,7 @@ const ReturnsReportPage: React.FC = () => {
           <CardContent><ul className="list-disc pl-5 space-y-1 text-sm">{insights.map((s) => <li key={s}>{s}</li>)}</ul></CardContent></Card>}
 
         <div className="grid lg:grid-cols-3 gap-3">
-          <Card className="lg:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-base">Retururi pe ziua livrării</CardTitle><CardDescription>Bare = lei returnați, linie = rată retur %</CardDescription></CardHeader>
+          <Card className="lg:col-span-2"><CardHeader className="pb-2"><CardTitle className="text-base">Refuzuri pe ziua producției / expediției</CardTitle><CardDescription>Bare = lei returnați, linie = rată retur %</CardDescription></CardHeader>
             <CardContent className="h-72"><ResponsiveContainer><ComposedChart data={byDay}><CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="label" fontSize={11} /><YAxis yAxisId="l" fontSize={11} /><YAxis yAxisId="r" orientation="right" fontSize={11} unit="%" />
               <Tooltip formatter={(v: any, n: any) => n === 'Rată %' ? v + '%' : lei(+v)} /><Legend />
@@ -188,14 +187,14 @@ const ReturnsReportPage: React.FC = () => {
                 <XAxis type="number" fontSize={10} /><YAxis type="category" dataKey="key" width={130} fontSize={10} tickFormatter={(s: string) => s.length > 22 ? s.slice(0, 21) + '…' : s} />
                 <Tooltip formatter={(v: any) => lei(+v)} /><Bar dataKey="v" name="Returnat" fill="hsl(var(--primary))" className="cursor-pointer" onClick={(d: any) => setF({ ...f, [k]: d.key })} />
               </BarChart></ResponsiveContainer></CardContent></Card>))}
-          <Card><CardHeader className="pb-2"><CardTitle className="text-base">Pe ziua săptămânii (livrare)</CardTitle></CardHeader>
+          <Card><CardHeader className="pb-2"><CardTitle className="text-base">Pe ziua săptămânii (producție)</CardTitle></CardHeader>
             <CardContent className="h-80"><ResponsiveContainer><BarChart data={byWeekday}><XAxis dataKey="n" fontSize={10} /><YAxis fontSize={10} /><Tooltip formatter={(v: any) => lei(+v)} /><Bar dataKey="v" name="Returnat" fill="hsl(var(--destructive))" /></BarChart></ResponsiveContainer></CardContent></Card>
         </div>
 
         <Tabs defaultValue="clienti">
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="clienti">Clienți</TabsTrigger><TabsTrigger value="magazine">Magazine</TabsTrigger><TabsTrigger value="produse">Produse</TabsTrigger>
-            <TabsTrigger value="motive">Motive scrise</TabsTrigger><TabsTrigger value="linii">Toate rândurile</TabsTrigger>
+            <TabsTrigger value="motive">Motive scrise</TabsTrigger><TabsTrigger value="linii">Detaliu și operatori</TabsTrigger>
           </TabsList>
           <p className="text-xs text-muted-foreground my-2">Clic pe un rând ca să vezi doar acel client / magazin / produs în tot raportul. Rata de retur = lei returnați ÷ lei livrați aceluiași client/magazin/produs în perioadă.</p>
           <TabsContent value="clienti"><GroupTable rows={byClient} label="Client" onPick={(k) => setF({ ...f, client: k })} /></TabsContent>
@@ -203,12 +202,16 @@ const ReturnsReportPage: React.FC = () => {
           <TabsContent value="produse"><GroupTable rows={byArt} label="Produs" onPick={(k) => setF({ ...f, art: k })} /></TabsContent>
           <TabsContent value="motive"><GroupTable rows={byReason} label="Motiv (cum e scris în Senior)" rateCol={false} /></TabsContent>
           <TabsContent value="linii" className="space-y-2">
-            <Input placeholder="Caută magazin, produs, motiv, aviz…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+            <Input placeholder="Caută magazin, produs, operator, linie, aviz…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+            <p className="text-xs text-muted-foreground">Operatorul principal și linia provin din sesiunile cu producție înregistrată pentru același produs, magazin și zi. Asocierea nu confirmă lotul refuzat și nu dovedește vina operatorului. Cantitățile sesiunilor nu reprezintă cantități refuzate.</p>
             <div className="max-h-[560px] overflow-auto rounded-md border"><table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted z-10"><tr className="text-left"><th className="p-2">Zi livrare</th><th className="p-2">Zi retur</th><th className="p-2">Aviz</th><th className="p-2">Magazin</th><th className="p-2">Produs</th><th className="p-2 text-right">Cant.</th><th className="p-2 text-right">Valoare</th><th className="p-2">Motiv</th></tr></thead>
-              <tbody>{shownLines.map((l: EnrichedReturn) => <tr key={l.id} className="border-t">
+              <thead className="sticky top-0 bg-muted z-10"><tr className="text-left"><th className="p-2">Zi producție</th><th className="p-2">Livrare / refuz</th><th className="p-2">Aviz</th><th className="p-2">Magazin</th><th className="p-2">Produs</th><th className="p-2">Operator principal / linie</th><th className="p-2 text-right">Cant.</th><th className="p-2 text-right">Valoare</th><th className="p-2">Motiv</th></tr></thead>
+              <tbody>{shownLines.map((l: EnrichedReturn) => <React.Fragment key={l.id}><tr className="border-t">
                 <td className="p-2">{fmtDay(l.delivered)}</td><td className="p-2 text-muted-foreground">{fmtDay(l.day)}</td><td className="p-2">{l.doc}</td><td className="p-2">{l.partner}</td><td className="p-2">{l.art}</td>
-                <td className="p-2 text-right">{num(l.q)}</td><td className="p-2 text-right">{lei(l.v)}</td><td className="p-2"><Badge variant="outline">{l.reasonText}</Badge></td></tr>)}</tbody>
+                <td className="p-2 min-w-48">{l.production?.length ? <><div className="space-y-1">{[...new Set(l.production.map((w) => `${w.operator} — ${w.line}`))].map((name) => <div key={name}>{name}</div>)}</div><Button size="sm" variant="ghost" onClick={() => setExpanded(expanded === String(l.id) ? null : String(l.id))}>{expanded === String(l.id) ? 'Închide sesiuni' : 'Vezi sesiuni'}</Button></> : <span className="text-muted-foreground">{data.productionWarning ? 'Date indisponibile' : 'Fără sesiune asociată'}</span>}</td>
+                <td className="p-2 text-right">{num(l.q)}</td><td className="p-2 text-right">{lei(l.v)}</td><td className="p-2"><Badge variant="outline">{l.reasonText}</Badge></td></tr>
+                {expanded === String(l.id) && <tr className="bg-muted/30"><td colSpan={9} className="p-3"><table className="w-full text-xs"><thead><tr className="text-left"><th className="p-2">Comandă</th><th className="p-2">Operator principal</th><th className="p-2">Linie</th><th className="p-2">Echipă (persoane)</th><th className="p-2">Start</th><th className="p-2">Stop</th><th className="p-2 text-right">Produs în sesiune</th></tr></thead><tbody>{(l.production ?? []).map((w) => <tr key={w.sessionId} className="border-t"><td className="p-2">{w.order}</td><td className="p-2">{w.operator}</td><td className="p-2">{w.line}</td><td className="p-2">{w.employees || '—'}</td><td className="p-2">{new Date(w.start).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' })}</td><td className="p-2">{w.end ? new Date(w.end).toLocaleString('ro-RO', { timeZone: 'Europe/Bucharest' }) : 'În lucru'}</td><td className="p-2 text-right">{num(w.quantity)}</td></tr>)}</tbody></table></td></tr>}
+              </React.Fragment>)}</tbody>
             </table></div>
           </TabsContent>
         </Tabs>

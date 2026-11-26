@@ -1,7 +1,18 @@
-import { describe, it, expect } from 'vitest';
-import { reasonCategory, splitPartner, deliveryDay, enrich, groupBy, shippedBy } from '@/lib/returns/returnsReport';
+import { describe, it, expect } from 'bun:test';
+import { reasonCategory, splitPartner, deliveryDay, enrich, groupBy, shippedBy } from '../../src/lib/returns/returnsReport';
+import { matchProduction, productionDay, type ProductionWork } from '../../supabase/functions/_shared/returnsProduction';
 
 describe('returns report rules', () => {
+  it('goods produced today are refused at delivery tomorrow, without another waiting day', () => {
+    expect(productionDay('2026-11-27')).toBe('2026-11-26');
+    expect(productionDay('2026-12-01')).toBe('2026-11-30');
+  });
+  it('shows only operators who produced the exact product for that store on the previous day', () => {
+    const w: ProductionWork = { sessionId: 's1', orderId: 'o1', order: '100', day: '2026-11-26', product: 'SPANAC 500 GR LIDL', store: 'LIDL DISCOUNT SRL', point: 'ROMAN', operator: 'Ana', line: 'Salate 1', quantity: 400, start: '2026-11-26T08:00:00Z', end: '2026-11-26T09:00:00Z', employees: 5 };
+    const row = { day: '2026-11-27', art: w.product, partner: 'LIDL DISCOUNT SRL - ROMAN' };
+    expect(matchProduction(row, [w, { ...w, sessionId: 's2', point: 'FUNDENI' }, { ...w, sessionId: 's3', product: 'SPANAC 100 GR LIDL' }, { ...w, sessionId: 's4', day: '2026-11-25' }, { ...w, sessionId: 's5', quantity: 0 }, w])).toEqual([w]);
+    expect(matchProduction({ ...row, art: 'ALT PRODUS' }, [w])).toEqual([]);
+  });
   it('return seen on the 1st of next month belongs to last day of the month', () => {
     expect(deliveryDay('2026-12-01', 1)).toBe('2026-11-30');
   });
