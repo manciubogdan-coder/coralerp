@@ -54,8 +54,10 @@ import { supplierPriceList, saveSupplierPriceList, supplierPriceAudit } from "./
 import { compactData, attachmentManifest, messageText } from "./contextRules.ts";
 import { loadHorecaGroups, changeHorecaGroups } from '../_shared/horecaGroupConfig.ts';
 import { readAll } from '../_shared/productRecipes.ts';
+import { requireHorecaReader } from '../_shared/horecaAccess.ts';
 import {
   LEGACY_ANON,
+  LEGACY_URL,
   addDays,
   bucharestDay,
   makeClients,
@@ -553,7 +555,8 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get("action") ?? "";
     if (action === "cron_agents") return await handleCron();
     const token = req.headers.get("x-app-token");
-    const auth = SALES_PRICING_ACTIONS.has(action) ? await requirePricing(token)
+    const auth = action === 'horeca_groups_read' ? await requireHorecaReader(token, LEGACY_URL, LEGACY_ANON)
+      : SALES_PRICING_ACTIONS.has(action) ? await requirePricing(token)
       : PURCHASING_RADAR_ACTIONS.has(action) ? await requirePurchasing(token) : await requireAdmin(token);
     if ("error" in auth) return json({ error: auth.error }, auth.status);
     const userId = auth.user.id;
@@ -564,6 +567,10 @@ Deno.serve(async (req) => {
 
 
     switch (action) {
+      case 'horeca_groups_read': {
+        if (req.method !== 'GET') return json({ error: 'Metodă invalidă.' }, 405);
+        return json(await loadHorecaGroups(c.cloud));
+      }
       case 'horeca_groups_change': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         const body = await req.json();

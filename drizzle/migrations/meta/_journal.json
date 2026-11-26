@@ -337,6 +337,13 @@
       "when": 1795685539406,
       "tag": "0047_configurable_horeca_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795685870746,
+      "tag": "0048_restrict_horeca_group_reads",
+      "breakpoints": true
     }
   ]
 }
