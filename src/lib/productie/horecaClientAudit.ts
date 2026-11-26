@@ -1,13 +1,13 @@
-import { horecaGroup, normalizeHoreca, type HorecaGroup } from '../../../supabase/functions/_shared/horecaRules';
+import { horecaGroup, normalizeHoreca, DEFAULT_HORECA_GROUPS, type HorecaGroup } from '../../../supabase/functions/_shared/horecaRules';
 
 type Client = { id: string; nume_magazin: string; punct_livrare?: string; nickname?: string };
 type Order = { magazin: string; punct_livrare?: string; data_productie?: string; tip_comanda?: string };
 export type ClientAuditRow = { id: string; name: string; point: string; nickname: string; group: HorecaGroup | null; orders: number; issue: 'missing' | 'conflict' | null; client?: Client };
 const key = (name: string, point?: string) => `${normalizeHoreca(name)}||${normalizeHoreca(point || 'Standard')}`;
 
-export function auditHorecaClients(clients: Client[], orders: Order[], day: string): ClientAuditRow[] {
+export function auditHorecaClients(clients: Client[], orders: Order[], day: string, groups = DEFAULT_HORECA_GROUPS): ClientAuditRow[] {
   const rows: ClientAuditRow[] = clients.map(client => ({ id: client.id, name: client.nume_magazin,
-    point: client.punct_livrare || 'Standard', nickname: client.nickname || '', group: horecaGroup(client.nickname), orders: 0, issue: null, client }));
+    point: client.punct_livrare || 'Standard', nickname: client.nickname || '', group: horecaGroup(client.nickname, groups), orders: 0, issue: null, client }));
   const exact = new Map<string, ClientAuditRow[]>();
   const stores = new Map<string, ClientAuditRow[]>();
   for (const row of rows) {

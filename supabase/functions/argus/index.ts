@@ -52,6 +52,8 @@ import { rollingContext } from "./context.ts";
 import { radarSettings, saveRadarSettings, radarSnapshot } from "./radar.ts";
 import { supplierPriceList, saveSupplierPriceList, supplierPriceAudit } from "./supplierPrices.ts";
 import { compactData, attachmentManifest, messageText } from "./contextRules.ts";
+import { loadHorecaGroups, changeHorecaGroups } from '../_shared/horecaGroupConfig.ts';
+import { readAll } from '../_shared/productRecipes.ts';
 import {
   LEGACY_ANON,
   addDays,
@@ -562,6 +564,25 @@ Deno.serve(async (req) => {
 
 
     switch (action) {
+      case 'horeca_groups_change': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        const body = await req.json();
+        const current = await loadHorecaGroups(c.cloud);
+        if (!Number.isInteger(body?.version) || body.version !== current.version) return json({ error: 'Grupele au fost modificate de altcineva. Reverifică lista.' }, 409);
+        const clients = await readAll(c.legacy, 'productie_clienti', 'id,nickname');
+        let groups;
+        try { groups = changeHorecaGroups(current.groups, body, clients); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+        if (current.version === 0) {
+          const { error } = await c.cloud.from('productie_horeca_grupe').insert({ id: true, groups, version: 1 });
+          if (error) return json({ error: 'Lista s-a schimbat. Reverifică grupele.' }, 409);
+        } else {
+          const { data, error } = await c.cloud.from('productie_horeca_grupe').update({ groups, version: current.version + 1 }).eq('id', true).eq('version', current.version).select('id');
+          if (error) throw error;
+          if (!data?.length) return json({ error: 'Lista s-a schimbat. Reverifică grupele.' }, 409);
+        }
+        return json({ groups, version: current.version + 1 });
+      }
       case 'receipt_price_safety': {
         try { return json(await receptionPriceSafety(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }

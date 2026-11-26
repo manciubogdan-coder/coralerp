@@ -6,7 +6,7 @@ import { useAddSessionRebut } from './useSessionRebut';
 import { refreshProductionQueries } from '@/lib/productie/refreshProductionQueries';
 import { horecaProductNeeds, planHorecaFinish, type HorecaFinishOrder } from '@/lib/productie/horecaFinish';
 import { loadDirectPickingIds } from '@/lib/productie/directPicking';
-import { loadHorecaRouting } from '../../../supabase/functions/_shared/horecaRouting';
+import { loadHorecaRouting } from '@/lib/productie/horecaGroups';
 import { wholeUnits } from '@/lib/productie/finishSession';
 
 async function loadSnapshot(ids: string[]) {

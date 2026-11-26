@@ -16,6 +16,7 @@ import { findCarton, expandCarton, type MixedCarton } from '../_shared/mixedCart
 import { cartonNameUnit } from './cartonUnit.ts';
 import { findAbsorbPairs, applyAbsorb } from './absorb.ts';
 import { loadHorecaRouting, reconcileHorecaRouting } from '../_shared/horecaRouting.ts';
+import { loadHorecaGroups } from '../_shared/horecaGroupConfig.ts';
 
 const LEGACY_URL = "https://mfcdlifjxxdrekzdatfb.supabase.co";
 const LEGACY_ANON =
@@ -242,7 +243,8 @@ Deno.serve(async (req) => {
     .toISOString()
     .slice(0, 10);
 
-  const horecaRouting = await loadHorecaRouting(supabase);
+  const horecaGroups = (await loadHorecaGroups(cloud)).groups;
+  const horecaRouting = await loadHorecaRouting(supabase, horecaGroups);
   // Preîncarc liniile de producție active (pentru auto-distribuire)
   const { data: liniiActive } = await supabase
     .from("productie_linii")
@@ -875,7 +877,7 @@ Deno.serve(async (req) => {
   // Repair older distributed orders and active sessions, without rewriting finished work.
   let horeca: Awaited<ReturnType<typeof reconcileHorecaRouting>> | null = null;
   try {
-    horeca = await reconcileHorecaRouting(supabase, directPicking, [...absorbDays]);
+    horeca = await reconcileHorecaRouting(supabase, directPicking, [...absorbDays], horecaGroups);
     if (horeca.failures.length) errors.push({ horeca: horeca.failures });
   } catch (e: any) { errors.push({ horeca: e.message || String(e) }); }
 

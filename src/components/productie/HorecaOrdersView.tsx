@@ -14,6 +14,7 @@ import { horecaOrderGroup, type HorecaGroup } from '../../../supabase/functions/
 import { wholeUnits } from '@/lib/productie/finishSession';
 import { toast } from '@/hooks/use-toast';
 import OrderPackaging from './OrderPackaging';
+import { useHorecaGroups } from '@/hooks/productie/useHorecaGroups';
 
 const unitOf = (order: ProductieComanda) => {
   const unit = order.productie_produse?.unitate_masura || 'buc';
@@ -36,6 +37,7 @@ export default function HorecaOrdersView({ orders, sessions, day }: {
   const [waste, setWaste] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
   const work = useHorecaWork();
+  const config = useHorecaGroups();
   const groupOrders = orders.filter(o => horecaOrderGroup(o) === opened);
   const active = sessions.filter(s => s.status === 'activa' && groupOrders.some(o => o.id === s.comanda_id));
   const activeIds = new Set(active.map(s => s.comanda_id));
@@ -76,7 +78,8 @@ export default function HorecaOrdersView({ orders, sessions, day }: {
 
   if (!opened) return (
     <div className="grid gap-4 md:grid-cols-2">
-      {(['Caterin', 'Mircea'] as const).map(group => {
+      {config.isError && <p role="alert" className="text-destructive">Grupele HoReCa nu s-au putut încărca.</p>}
+      {(config.data?.groups || []).map(({ name: group }) => {
         const rows = orders.filter(o => horecaOrderGroup(o) === group);
         const running = sessions.filter(s => s.status === 'activa' && rows.some(o => o.id === s.comanda_id));
         const finished = rows.filter(done).length;

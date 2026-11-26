@@ -1,4 +1,4 @@
-import { HORECA_LINE_ID, createHorecaClientLookup, isHorecaLine } from './horecaRules.ts';
+import { HORECA_LINE_ID, createHorecaClientLookup, isHorecaLine, DEFAULT_HORECA_GROUPS } from './horecaRules.ts';
 
 async function pages(makeQuery: () => any) {
   const rows: any[] = [];
@@ -10,12 +10,12 @@ async function pages(makeQuery: () => any) {
   }
 }
 
-export async function loadHorecaRouting(client: any) {
+export async function loadHorecaRouting(client: any, groups = DEFAULT_HORECA_GROUPS) {
   const [clients, lines] = await Promise.all([
     pages(() => client.from('productie_clienti').select('id,nume_magazin,punct_livrare,nickname')),
     pages(() => client.from('productie_linii').select('id,nume,status')),
   ]);
-  const lookup = createHorecaClientLookup(clients);
+  const lookup = createHorecaClientLookup(clients, groups);
   let line = lines.find(isHorecaLine);
   if (!line) {
     const { data, error } = await client.from('productie_linii').upsert({
@@ -35,8 +35,8 @@ export async function loadHorecaRouting(client: any) {
 }
 
 /** Move demand and active sessions only. Finished sessions retain their real line/time. */
-export async function reconcileHorecaRouting(client: any, directIds: Set<string>, days?: string[]) {
-  const routing = await loadHorecaRouting(client);
+export async function reconcileHorecaRouting(client: any, directIds: Set<string>, days?: string[], groups = DEFAULT_HORECA_GROUPS) {
+  const routing = await loadHorecaRouting(client, groups);
   const [outstanding, active] = await Promise.all([
     pages(() => {
       const query = client.from('productie_comenzi').select('id,magazin,punct_livrare,produs_id,tip_comanda,linie_id,status,cantitate')

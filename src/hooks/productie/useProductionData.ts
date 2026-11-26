@@ -12,7 +12,7 @@ export const DIRECT_PICKING_KEY = ['productie-direct-picking'] as const;
 import { loadMixedCartons } from './useMixedCartons';
 import { findCarton, expandCarton } from '../../../supabase/functions/_shared/mixedCartons';
 import { readAll } from '../../../supabase/functions/_shared/productRecipes';
-import { loadHorecaRouting } from '../../../supabase/functions/_shared/horecaRouting';
+import { loadHorecaRouting, readHorecaGroups } from '@/lib/productie/horecaGroups';
 import { createHorecaClientLookup } from '../../../supabase/functions/_shared/horecaRules';
 
 
@@ -586,7 +586,7 @@ export const useOrders = (day?: string) => {
         }
         return sessions;
       };
-      const [data, clients, sessions, directIds] = await Promise.all([
+      const [data, clients, sessions, directIds, horecaConfig] = await Promise.all([
         fetchOrders(),
         queryClient.fetchQuery({
           queryKey: ['clients', 'production-order-lookup'], staleTime: 5 * 60_000,
@@ -607,10 +607,11 @@ export const useOrders = (day?: string) => {
         fetchSessions(),
         queryClient.fetchQuery({ queryKey: DIRECT_PICKING_KEY, staleTime: 60_000, queryFn: loadDirectPickingIds })
           .catch(() => new Set<string>()),
+        readHorecaGroups(),
       ]);
 
       const clientiMap = new Map<string, any>();
-      const horecaLookup = createHorecaClientLookup(clients);
+      const horecaLookup = createHorecaClientLookup(clients, horecaConfig.groups);
       clients.forEach((c: any) => {
         clientiMap.set(`${c.nume_magazin}||${c.punct_livrare}`, c);
       });

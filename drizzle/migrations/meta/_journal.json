@@ -330,6 +330,13 @@
       "when": 1795593055014,
       "tag": "0046_argus_future_conversation_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795685539406,
+      "tag": "0047_configurable_horeca_groups",
+      "breakpoints": true
     }
   ]
 }

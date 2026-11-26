@@ -2077,6 +2077,24 @@ export type Database = {
         }
         Relationships: []
       }
+      productie_horeca_grupe: {
+        Row: {
+          groups: Json
+          id: boolean
+          version: number
+        }
+        Insert: {
+          groups: Json
+          id?: boolean
+          version?: number
+        }
+        Update: {
+          groups?: Json
+          id?: boolean
+          version?: number
+        }
+        Relationships: []
+      }
       productie_linii_grupe: {
         Row: {
           created_at: string

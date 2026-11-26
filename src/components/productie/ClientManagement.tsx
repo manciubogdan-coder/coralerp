@@ -12,8 +12,12 @@ import { Pencil, Trash2, Plus, MapPin } from 'lucide-react';
 import ClientSearch from './ClientSearch';
 import HorecaClientVerification from './HorecaClientVerification';
 import { horecaGroup } from '../../../supabase/functions/_shared/horecaRules';
+import { useHorecaGroups } from '@/hooks/productie/useHorecaGroups';
+import HorecaGroupSettings from './HorecaGroupSettings';
 
 const ClientManagement = () => {
+  const groupsQuery = useHorecaGroups();
+  const groups = groupsQuery.data?.groups || [];
   const { data: clients = [], isLoading } = useClients();
   const { data: zones = [] } = useDeliveryZones();
   const createClient = useCreateClient();
@@ -166,8 +170,8 @@ const ClientManagement = () => {
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Grupă HoReCa</legend>
                 <div className="flex flex-wrap gap-2">
-                  {(['Caterin', 'Mircea'] as const).map(group => <Button key={group} type="button" size="sm" aria-pressed={horecaGroup(formData.nickname) === group} variant={horecaGroup(formData.nickname) === group ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, nickname: group })}>{group}</Button>)}
-                  <Button type="button" size="sm" variant={!horecaGroup(formData.nickname) ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, nickname: horecaGroup(formData.nickname) ? '' : formData.nickname })}>În afara HoReCa</Button>
+                  {groups.map(group => <Button key={group.id} type="button" size="sm" aria-pressed={horecaGroup(formData.nickname, groups) === group.name} variant={horecaGroup(formData.nickname, groups) === group.name ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, nickname: group.name })}>{group.name}</Button>)}
+                  <Button type="button" size="sm" variant={!horecaGroup(formData.nickname, groups) ? 'default' : 'outline'} onClick={() => setFormData({ ...formData, nickname: horecaGroup(formData.nickname, groups) ? '' : formData.nickname })}>În afara HoReCa</Button>
                 </div>
               </fieldset>
               
@@ -256,10 +260,10 @@ const ClientManagement = () => {
         <Button variant={view === 'horeca' ? 'default' : 'outline'} onClick={() => setView('horeca')}>Verificare HoReCa</Button>
         <Button variant={view === 'clients' ? 'default' : 'outline'} onClick={() => setView('clients')}>Registru clienți</Button>
       </div>
-      {view === 'horeca' ? <HorecaClientVerification onEdit={row => {
+      {view === 'horeca' ? <><HorecaGroupSettings /><HorecaClientVerification onEdit={row => {
         if (row.client) handleEdit(row.client);
         else { resetForm(); setFormData({ nume_magazin: row.name, punct_livrare: row.point, nickname: '', adresa: '', telefon: '', email: '', zona_livrare_id: '' }); setShowCreateDialog(true); }
-      }} /> : <>
+      }} /></> : <>
       <ClientSearch 
         searchFilters={searchFilters}
         setSearchFilters={setSearchFilters}
