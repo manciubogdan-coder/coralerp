@@ -1,4 +1,5 @@
 import { corsHeaders as baseCors } from "npm:@supabase/supabase-js@2/cors";
+import { returnsReport } from "./returnsReport.ts";
 import { createOpenAI } from "npm:@ai-sdk/openai@4";
 import { createAnthropic } from "npm:@ai-sdk/anthropic@4";
 import { loadMemory, memoryTools, backfillMemory } from "./memory.ts";
@@ -669,6 +670,11 @@ Deno.serve(async (req) => {
       case 'supplier_price_audit': {
         if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
         try { return json(await supplierPriceAudit(c.cloud, await req.json())); }
+        catch (e) { return json({ error: (e as Error).message }, 400); }
+      }
+      case 'returns_report': {
+        if (req.method !== 'POST') return json({ error: 'Metodă invalidă.' }, 405);
+        try { return json(await returnsReport(c.cloud, await req.json())); }
         catch (e) { return json({ error: (e as Error).message }, 400); }
       }
       case 'radar_settings': {

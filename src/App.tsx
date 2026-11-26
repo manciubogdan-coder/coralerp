@@ -18,6 +18,7 @@ import DepartmentHub from "./pages/DepartmentHub";
 import AdministrativHub from "./pages/AdministrativHub";
 const ViziunePage = React.lazy(() => import("./pages/ViziunePage"));
 const AchizitiiRadarPage = React.lazy(() => import("./pages/AchizitiiRadarPage"));
+const ReturnsReportPage = React.lazy(() => import('./pages/ReturnsReportPage'));
 import AchizitiiHub from "./pages/AchizitiiHub";
 import PlaceholderPage from "./components/PlaceholderPage";
 
@@ -398,6 +399,14 @@ const AppShell = () => {
                   element={
                     <ProtectedRoute requireDepartment="administrativ">
                       <React.Suspense fallback={null}><AchizitiiRadarPage /></React.Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/administrativ/retururi"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <React.Suspense fallback={null}><ReturnsReportPage /></React.Suspense>
                     </ProtectedRoute>
                   }
                 />
